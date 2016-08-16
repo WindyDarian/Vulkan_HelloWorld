@@ -51,6 +51,23 @@ private:
 		window = glfwCreateWindow(window_width, window_height, "Vulkan Hello World", nullptr, nullptr);
 	}
 
+
+	void initVulkan()
+	{
+		createInstance();
+		setupDebugCallback();
+		pickPhysicalDevice();
+	}
+
+
+	void mainLoop()
+	{
+		while (!glfwWindowShouldClose(window))
+		{
+			glfwPollEvents();
+		}
+	}
+
 	void createInstance()
 	{
 		if (bEnableValidationLayers && !checkValidationLayerSupport()) 
@@ -178,12 +195,6 @@ private:
 		// should I free sth after?
 	}
 
-	void initVulkan() 
-	{
-		createInstance();
-		setupDebugCallback();
-	}
-
 	void setupDebugCallback() 
 	{
 		if (!bEnableValidationLayers) return;
@@ -237,14 +248,101 @@ private:
 		return VK_FALSE;
 	}
 
-	void mainLoop()
+	// Pick up a graphics card to use
+	void pickPhysicalDevice()
 	{
-		while (!glfwWindowShouldClose(window))
+		// This object will be implicitly destroyed when the VkInstance is destroyed, so we don't need to add a delete wrapper.
+		VkPhysicalDevice physial_device = VK_NULL_HANDLE;
+		uint32_t device_count = 0;
+		vkEnumeratePhysicalDevices(instance, &device_count, nullptr);
+
+		if (device_count == 0)
 		{
-			glfwPollEvents();
+			throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+		}
+
+		std::vector<VkPhysicalDevice> devices(device_count);
+		vkEnumeratePhysicalDevices(instance, &device_count, devices.data());
+		//TODO: continue here
+
+		for (const auto& device : devices)
+		{
+			if (isDeviceSuitable(device))
+			{
+				physial_device = device;
+				break;
+			}
+		}
+
+		if (physial_device == VK_NULL_HANDLE) 
+		{
+			throw std::runtime_error("Failed to find a suitable GPU!");
+		}
+		else
+		{
+			VkPhysicalDeviceProperties properties;
+			vkGetPhysicalDeviceProperties(physial_device, &properties);
+			std::cout << "Current Device: " << properties.deviceName << std::endl;
 		}
 	}
 
+	bool isDeviceSuitable(VkPhysicalDevice device)
+	{
+		//VkPhysicalDeviceProperties properties;
+		//vkGetPhysicalDeviceProperties(device, &properties);
+
+		//VkPhysicalDeviceFeatures features;
+		//vkGetPhysicalDeviceFeatures(device, &features);
+
+		//return properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+		//	&& features.geometryShader;
+
+		QueueFamilyIndices indices = findQueueFamilies(device);
+
+		//return false;
+		return indices.isComplete();
+		//return true;
+	}
+
+	struct QueueFamilyIndices 
+	{
+		int graphicsFamily = -1;
+
+		bool isComplete() 
+		{
+			return graphicsFamily >= 0;
+		}
+	};
+
+	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) 
+	{
+		QueueFamilyIndices indices;
+
+		uint32_t queuefamily_count = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queuefamily_count, nullptr);
+
+		std::vector<VkQueueFamilyProperties> queuefamilies(queuefamily_count);
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queuefamily_count, queuefamilies.data());
+
+		int i = 0;
+		for (const auto& queuefamily : queuefamilies) 
+		{
+			if (queuefamily.queueCount > 0 && queuefamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) 
+			{
+				// Graphics queue_family
+				indices.graphicsFamily = i;
+			}
+
+			if (indices.isComplete()) {
+				break;
+			}
+
+			i++;
+		}
+
+
+		return indices;
+	}
 };
 
 int main() 
