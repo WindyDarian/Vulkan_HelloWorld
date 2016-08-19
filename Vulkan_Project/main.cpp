@@ -28,6 +28,10 @@ private:
 
 	VDeleter<VkInstance> instance{ vkDestroyInstance };
 	VDeleter<VkDebugReportCallbackEXT> callback{ instance, DestroyDebugReportCallbackEXT };
+	VkPhysicalDevice physical_device;
+
+	VDeleter<VkDevice> graphics_device{vkDestroyDevice};
+	VkQueue graphics_queue;
 
 	const int window_width = 1920;
 	const int window_height = 1080;
@@ -57,6 +61,7 @@ private:
 		createInstance();
 		setupDebugCallback();
 		pickPhysicalDevice();
+		//createLogicalDevice();
 	}
 
 
@@ -284,6 +289,8 @@ private:
 			vkGetPhysicalDeviceProperties(physial_device, &properties);
 			std::cout << "Current Device: " << properties.deviceName << std::endl;
 		}
+
+		this->physical_device = physial_device;
 	}
 
 	bool isDeviceSuitable(VkPhysicalDevice device)
@@ -342,6 +349,50 @@ private:
 
 
 		return indices;
+	}
+
+	void createLogicalDevice() 
+	{
+		QueueFamilyIndices indices = findQueueFamilies(physical_device);
+
+		// Create a graphics qeue
+		VkDeviceQueueCreateInfo queue_create_info = {};
+		queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queue_create_info.queueFamilyIndex = indices.graphicsFamily;
+		queue_create_info.queueCount = 1;
+		// Required
+		float queue_priority = 1.0f;
+		queue_create_info.pQueuePriorities = &queue_priority;
+
+		// Specify used device features
+		VkPhysicalDeviceFeatures device_features = {}; // Everything is by default VK_FALSE
+
+		// Create the logical device
+		VkDeviceCreateInfo device_create_info = {};
+		device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		device_create_info.pQueueCreateInfos = &queue_create_info;
+		device_create_info.queueCreateInfoCount = 1;
+		device_create_info.pEnabledFeatures = &device_features;
+		
+		device_create_info.enabledExtensionCount = 0;
+		if (bEnableValidationLayers)
+		{
+			device_create_info.enabledLayerCount = validationLayers.size();
+			device_create_info.ppEnabledLayerNames = validationLayers.data();
+		}
+		else
+		{
+			device_create_info.enabledLayerCount = 0;
+		}
+
+		auto result = vkCreateDevice(physical_device, &device_create_info, nullptr, &graphics_device);
+
+		if (result != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create logical device!");
+		}
+
+		vkGetDeviceQueue(graphics_device, indices.graphicsFamily, 0, &graphics_queue);
 	}
 };
 
