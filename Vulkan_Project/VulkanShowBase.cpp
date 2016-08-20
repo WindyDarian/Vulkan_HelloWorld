@@ -137,7 +137,7 @@ void VulkanShowBase::mainLoop()
 
 void VulkanShowBase::createInstance()
 {
-	if (bEnableValidationLayers && !checkValidationLayerSupport())
+	if (ENABLE_VALIDATION_LAYERS && !checkValidationLayerSupport())
 	{
 		throw std::runtime_error("validation layers requested, but not available!");
 	}
@@ -190,9 +190,9 @@ void VulkanShowBase::createInstance()
 	createInfo.enabledExtensionCount = static_cast<uint32_t>(glfwExtensions.size());
 	createInfo.ppEnabledExtensionNames = glfwExtensions.data();
 
-	if (bEnableValidationLayers) {
-		createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-		createInfo.ppEnabledLayerNames = validationLayers.data();
+	if (ENABLE_VALIDATION_LAYERS) {
+		createInfo.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
+		createInfo.ppEnabledLayerNames = VALIDATION_LAYERS.data();
 	}
 	else {
 		createInfo.enabledLayerCount = 0;
@@ -214,7 +214,7 @@ bool VulkanShowBase::checkValidationLayerSupport()
 	std::vector<VkLayerProperties> availableLayers(layerCount);
 	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
-	for (const char* layerName : validationLayers)
+	for (const char* layerName : VALIDATION_LAYERS)
 	{
 		bool layerFound = false;
 
@@ -248,7 +248,7 @@ std::vector<const char*> VulkanShowBase::getRequiredExtensions()
 		extensions.push_back(glfwExtensions[i]);
 	}
 
-	if (bEnableValidationLayers)
+	if (ENABLE_VALIDATION_LAYERS)
 	{
 		extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 	}
@@ -259,7 +259,7 @@ std::vector<const char*> VulkanShowBase::getRequiredExtensions()
 
 void VulkanShowBase::setupDebugCallback()
 {
-	if (!bEnableValidationLayers) return;
+	if (!ENABLE_VALIDATION_LAYERS) return;
 
 	VkDebugReportCallbackCreateInfoEXT createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
@@ -328,9 +328,28 @@ bool VulkanShowBase::isDeviceSuitable(VkPhysicalDevice device)
 
 	QueueFamilyIndices indices = QueueFamilyIndices::findQueueFamilies(device, static_cast<VkSurfaceKHR>(window_surface));
 
+	bool extensions_suppored = checkDeviceExtensionSupport(device);
+
 	//return false;
-	return indices.isComplete();
+	return indices.isComplete() && extensions_suppored;
 	//return true;
+}
+
+bool VulkanShowBase::checkDeviceExtensionSupport(VkPhysicalDevice device)
+{
+	uint32_t extensionCount;
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+
+	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
+
+	std::set<std::string> requiredExtensions(DEVICE_EXTENSIONS.begin(), DEVICE_EXTENSIONS.end());
+
+	for (const auto& extension : availableExtensions) {
+		requiredExtensions.erase(extension.extensionName);
+	}
+
+	return requiredExtensions.empty();
 }
 
 void VulkanShowBase::createLogicalDevice()
@@ -364,16 +383,18 @@ void VulkanShowBase::createLogicalDevice()
 
 	device_create_info.pEnabledFeatures = &device_features;
 
-	device_create_info.enabledExtensionCount = 0;
-	if (bEnableValidationLayers)
+	if (ENABLE_VALIDATION_LAYERS)
 	{
-		device_create_info.enabledLayerCount = validationLayers.size();
-		device_create_info.ppEnabledLayerNames = validationLayers.data();
+		device_create_info.enabledLayerCount = VALIDATION_LAYERS.size();
+		device_create_info.ppEnabledLayerNames = VALIDATION_LAYERS.data();
 	}
 	else
 	{
 		device_create_info.enabledLayerCount = 0;
 	}
+
+	device_create_info.enabledExtensionCount = DEVICE_EXTENSIONS.size();
+	device_create_info.ppEnabledExtensionNames = DEVICE_EXTENSIONS.data();
 
 	auto result = vkCreateDevice(physical_device, &device_create_info, nullptr, &graphics_device);
 

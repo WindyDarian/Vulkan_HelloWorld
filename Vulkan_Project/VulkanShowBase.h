@@ -46,13 +46,17 @@ private:
 
 #ifdef NDEBUG
 	// if not debugging
-	const bool bEnableValidationLayers = false;
+	const bool ENABLE_VALIDATION_LAYERS = false;
 #else
-	const bool bEnableValidationLayers = true;
+	const bool ENABLE_VALIDATION_LAYERS = true;
 #endif
 
-	const std::vector<const char*> validationLayers = {
+	const std::vector<const char*> VALIDATION_LAYERS = {
 		"VK_LAYER_LUNARG_standard_validation"
+	};
+
+	const std::vector<const char*> DEVICE_EXTENSIONS = {
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
 
 	void initWindow();
@@ -66,6 +70,7 @@ private:
 	void setupDebugCallback();
 	void pickPhysicalDevice();
 	bool isDeviceSuitable(VkPhysicalDevice device);
+	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 	void createLogicalDevice();
 
 	static void DestroyDebugReportCallbackEXT(VkInstance instance
