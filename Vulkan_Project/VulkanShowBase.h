@@ -34,11 +34,17 @@ private:
 	VDeleter<VkDebugReportCallbackEXT> callback{ instance, DestroyDebugReportCallbackEXT };
 	VkPhysicalDevice physical_device;
 
-	VDeleter<VkDevice> graphics_device{ vkDestroyDevice };
+	VDeleter<VkDevice> graphics_device{ vkDestroyDevice }; //logical device
 	VkQueue graphics_queue;
 
 	VDeleter<VkSurfaceKHR> window_surface{ instance, vkDestroySurfaceKHR };
 	VkQueue present_queue;
+
+	VDeleter<VkSwapchainKHR> swap_chain{ graphics_device, vkDestroySwapchainKHR };
+	std::vector<VkImage> swap_chain_images;
+	VkFormat swap_chain_image_format;
+	VkExtent2D swap_chain_extent;
+	std::vector<VDeleter<VkImageView>> swap_chain_imageviews;
 
 	const int window_width = 1920;
 	const int window_height = 1080;
@@ -61,17 +67,25 @@ private:
 
 	void initWindow();
 	void initVulkan();
-	void createWindowSurface();
 	void mainLoop();
-	void createInstance();
 
+	void createInstance();
+	void setupDebugCallback();
+	void createWindowSurface();
+	void pickPhysicalDevice();
+	void createLogicalDevice();
+	void createSwapChain();
+	void createImageViews();
+	void createGraphicsPipeline();
+	
 	bool checkValidationLayerSupport();
 	std::vector<const char*> getRequiredExtensions();
-	void setupDebugCallback();
-	void pickPhysicalDevice();
 	bool isDeviceSuitable(VkPhysicalDevice device);
 	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-	void createLogicalDevice();
+
+	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& available_formats);
+	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& available_present_modes);
+	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
 	static void DestroyDebugReportCallbackEXT(VkInstance instance
 		, VkDebugReportCallbackEXT callback

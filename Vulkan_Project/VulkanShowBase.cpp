@@ -7,6 +7,40 @@
 #include <string>
 #include <cstring>
 #include <set>
+#include <algorithm>
+
+struct SwapChainSupportDetails 
+{
+	VkSurfaceCapabilitiesKHR capabilities;
+	std::vector<VkSurfaceFormatKHR> formats;
+	std::vector<VkPresentModeKHR> present_modes;
+
+	static SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) 
+	{
+		SwapChainSupportDetails details;
+		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+
+		// Getting supported surface formats
+		uint32_t format_count;
+		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, nullptr);
+		if (format_count != 0) 
+		{
+			details.formats.resize(format_count);
+			vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, details.formats.data());
+		}
+
+		// Getting supported present modes
+		uint32_t present_mode_count;
+		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, nullptr);
+		if (present_mode_count != 0) 
+		{
+			details.present_modes.resize(present_mode_count);
+			vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, details.present_modes.data());
+		}
+
+		return details;
+	}
+};
 
 QueueFamilyIndices QueueFamilyIndices::findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface)
 {
@@ -113,7 +147,9 @@ void VulkanShowBase::initVulkan()
 	createWindowSurface();
 	pickPhysicalDevice();
 	createLogicalDevice();
-
+	createSwapChain();
+	createImageViews();
+	createGraphicsPipeline();
 }
 
 // Needs to be called right after instance creation because it may influence device selection
@@ -330,9 +366,14 @@ bool VulkanShowBase::isDeviceSuitable(VkPhysicalDevice device)
 
 	bool extensions_suppored = checkDeviceExtensionSupport(device);
 
-	//return false;
-	return indices.isComplete() && extensions_suppored;
-	//return true;
+	bool swap_chain_adequate = false;
+	if (extensions_suppored)
+	{
+		auto swap_chain_support = SwapChainSupportDetails::querySwapChainSupport(device, static_cast<VkSurfaceKHR>(window_surface));
+		swap_chain_adequate = !swap_chain_support.formats.empty() && !swap_chain_support.present_modes.empty();
+	}
+
+	return indices.isComplete() && extensions_suppored && swap_chain_adequate;
 }
 
 bool VulkanShowBase::checkDeviceExtensionSupport(VkPhysicalDevice device)
@@ -385,7 +426,7 @@ void VulkanShowBase::createLogicalDevice()
 
 	if (ENABLE_VALIDATION_LAYERS)
 	{
-		device_create_info.enabledLayerCount = VALIDATION_LAYERS.size();
+		device_create_info.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
 		device_create_info.ppEnabledLayerNames = VALIDATION_LAYERS.data();
 	}
 	else
@@ -393,7 +434,7 @@ void VulkanShowBase::createLogicalDevice()
 		device_create_info.enabledLayerCount = 0;
 	}
 
-	device_create_info.enabledExtensionCount = DEVICE_EXTENSIONS.size();
+	device_create_info.enabledExtensionCount = static_cast<uint32_t>(DEVICE_EXTENSIONS.size());
 	device_create_info.ppEnabledExtensionNames = DEVICE_EXTENSIONS.data();
 
 	auto result = vkCreateDevice(physical_device, &device_create_info, nullptr, &graphics_device);
@@ -405,4 +446,160 @@ void VulkanShowBase::createLogicalDevice()
 
 	vkGetDeviceQueue(graphics_device, indices.graphicsFamily, 0, &graphics_queue);
 	vkGetDeviceQueue(graphics_device, indices.presentFamily, 0, &present_queue);
+}
+
+void VulkanShowBase::createSwapChain()
+{
+	auto support_details = SwapChainSupportDetails::querySwapChainSupport(physical_device, window_surface);
+
+	VkSurfaceFormatKHR surface_format = chooseSwapSurfaceFormat(support_details.formats);
+	VkPresentModeKHR present_mode = chooseSwapPresentMode(support_details.present_modes);
+	VkExtent2D extent = chooseSwapExtent(support_details.capabilities);
+
+	uint32_t queue_length = support_details.capabilities.minImageCount + 1;
+	if (support_details.capabilities.maxImageCount > 0 && queue_length > support_details.capabilities.maxImageCount) 
+	{
+		// 0 for maxImageCount means no limit
+		queue_length = support_details.capabilities.maxImageCount;
+	}
+
+	VkSwapchainCreateInfoKHR create_info = {};
+	create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	create_info.surface = window_surface;
+	create_info.minImageCount = queue_length;
+	create_info.imageFormat = surface_format.format;
+	create_info.imageColorSpace = surface_format.colorSpace;
+	create_info.imageExtent = extent;
+	create_info.imageArrayLayers = 1; // >1 when developing stereoscopic application
+	create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // render directly
+	// VK_IMAGE_USAGE_TRANSFER_DST_BIT and memory operation to enable post processing
+
+	QueueFamilyIndices indices = QueueFamilyIndices::findQueueFamilies(physical_device, window_surface);
+	uint32_t queueFamilyIndices[] = { (uint32_t)indices.graphicsFamily, (uint32_t)indices.presentFamily };
+
+	if (indices.graphicsFamily != indices.presentFamily) 
+	{
+		create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		create_info.queueFamilyIndexCount = 2;
+		create_info.pQueueFamilyIndices = queueFamilyIndices;
+	}
+	else 
+	{
+		create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		create_info.queueFamilyIndexCount = 0; // Optional
+		create_info.pQueueFamilyIndices = nullptr; // Optional
+	}
+
+	create_info.preTransform = support_details.capabilities.currentTransform; // not doing any transformation
+	create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // ignore alpha channel (for blending with other windows)
+
+	create_info.presentMode = present_mode;
+	create_info.clipped = VK_TRUE; // ignore pixels obscured
+	create_info.oldSwapchain = VK_NULL_HANDLE; // required when recreating a swap chain (like resizing windows)
+
+	auto result = vkCreateSwapchainKHR(graphics_device, &create_info, nullptr, &swap_chain);
+
+	if (result != VK_SUCCESS) 
+	{
+		throw std::runtime_error("Failed to create swap chain!");
+	}
+
+	uint32_t image_count;
+	vkGetSwapchainImagesKHR(graphics_device, swap_chain, &image_count, nullptr);
+	swap_chain_images.resize(image_count);
+	vkGetSwapchainImagesKHR(graphics_device, swap_chain, &image_count, swap_chain_images.data());
+
+	swap_chain_image_format = surface_format.format;
+	swap_chain_extent = extent;
+}
+
+void VulkanShowBase::createImageViews()
+{
+	swap_chain_imageviews.resize(swap_chain_images.size(), VDeleter<VkImageView>{graphics_device, vkDestroyImageView});
+	for (uint32_t i = 0; i < swap_chain_images.size(); i++) 
+	{
+		VkImageViewCreateInfo create_info = {};
+		create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		create_info.image = swap_chain_images[i];
+		create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		create_info.format = swap_chain_image_format;
+
+		// no swizzle
+		create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+		create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		create_info.subresourceRange.baseMipLevel = 0;
+		create_info.subresourceRange.levelCount = 1;
+		create_info.subresourceRange.baseArrayLayer = 0;
+		create_info.subresourceRange.layerCount = 1;
+
+		auto result = vkCreateImageView(graphics_device, &create_info, nullptr, &swap_chain_imageviews[i]);
+		if (result != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create image views!");
+		}
+	}
+}
+
+void VulkanShowBase::createGraphicsPipeline()
+{
+	// TODO: fill me!
+}
+
+VkSurfaceFormatKHR VulkanShowBase::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& available_formats)
+{
+	// When free to choose format 
+	if (available_formats.size() == 1 && available_formats[0].format == VK_FORMAT_UNDEFINED) 
+	{
+		return{ VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
+	}
+
+	for (const auto& available_format : available_formats)
+	{
+	    // prefer 32bits RGBA color with SRGB support
+		if (available_format.format == VK_FORMAT_B8G8R8A8_UNORM && available_format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) 
+		{
+			return available_format;
+		}
+	}
+
+	// TODO: Rank how good the formats are and choose the best?
+
+	return available_formats[0];
+}
+
+VkPresentModeKHR VulkanShowBase::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& available_present_modes)
+{
+	for (const auto& available_present_mode : available_present_modes)
+	{
+		if (available_present_mode == VK_PRESENT_MODE_MAILBOX_KHR) 
+		{
+			return available_present_mode;
+		}
+	}
+
+	return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+VkExtent2D VulkanShowBase::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities)
+{
+	// The swap extent is the resolution of the swap chain images 
+	if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) 
+	{
+		return capabilities.currentExtent;
+	}
+	else
+	{
+		VkExtent2D actual_extent = { (uint32_t)window_width, (uint32_t)window_height };
+
+		actual_extent.width = std::max(capabilities.minImageExtent.width
+			, std::min(capabilities.maxImageExtent.width, actual_extent.width));
+		actual_extent.height = std::max(capabilities.minImageExtent.height
+			, std::min(capabilities.maxImageExtent.height, actual_extent.height));
+
+		return actual_extent;
+	}
 }
