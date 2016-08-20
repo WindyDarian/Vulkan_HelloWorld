@@ -133,8 +133,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="VulkanShowBase.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="VulkanShowBase.h" />
     <ClInclude Include="VDeleter.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
