@@ -81,6 +81,13 @@
       <AdditionalLibraryDirectories>$(SolutionDir)ThirdParty\glfw-3.2.bin.WIN64\lib-vc2015;C:\VulkanSDK\1.0.21.1\Bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PreBuildEvent>
+      <Command>cd $(ProjectDir)build_tools/
+call "CompileShaders.bat"</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>XCOPY "$(ProjectDir)content" "$(TargetDir)content\" /S /Y</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -94,6 +101,13 @@
       <AdditionalLibraryDirectories>$(SolutionDir)ThirdParty\glfw-3.2.bin.WIN64\lib-vc2015;C:\VulkanSDK\1.0.21.1\Bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PreBuildEvent>
+      <Command>cd $(ProjectDir)build_tools/
+call "CompileShaders.bat"</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>XCOPY "$(ProjectDir)content" "$(TargetDir)content\" /S /Y</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -112,6 +126,13 @@
       <AdditionalLibraryDirectories>$(SolutionDir)ThirdParty\glfw-3.2.bin.WIN64\lib-vc2015;C:\VulkanSDK\1.0.21.1\Bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PreBuildEvent>
+      <Command>cd $(ProjectDir)build_tools/
+call "CompileShaders.bat"</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>XCOPY "$(ProjectDir)content" "$(TargetDir)content\" /S /Y</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -130,6 +151,13 @@
       <AdditionalLibraryDirectories>$(SolutionDir)ThirdParty\glfw-3.2.bin.WIN64\lib-vc2015;C:\VulkanSDK\1.0.21.1\Bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PreBuildEvent>
+      <Command>cd $(ProjectDir)build_tools/
+call "CompileShaders.bat"</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>XCOPY "$(ProjectDir)content" "$(TargetDir)content\" /S /Y</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />

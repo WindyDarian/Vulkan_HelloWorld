@@ -45,6 +45,20 @@ private:
 	VkFormat swap_chain_image_format;
 	VkExtent2D swap_chain_extent;
 	std::vector<VDeleter<VkImageView>> swap_chain_imageviews;
+	std::vector<VDeleter<VkFramebuffer>> swap_chain_framebuffers;
+
+	VDeleter<VkShaderModule> vert_shader_module{ graphics_device, vkDestroyShaderModule };
+	VDeleter<VkShaderModule> frag_shader_module{ graphics_device, vkDestroyShaderModule };
+	VDeleter<VkRenderPass> render_pass{ graphics_device, vkDestroyRenderPass };
+	VDeleter<VkPipelineLayout> pipeline_layout{ graphics_device, vkDestroyPipelineLayout };
+	VDeleter<VkPipeline> graphics_pipeline{ graphics_device, vkDestroyPipeline };
+
+	// Command buffers
+	VDeleter<VkCommandPool> command_pool{ graphics_device, vkDestroyCommandPool };
+	std::vector<VkCommandBuffer> command_buffers; // buffers will be released when pool destroyed
+
+	VDeleter<VkSemaphore> image_available_semaphore{ graphics_device, vkDestroySemaphore };
+	VDeleter<VkSemaphore> render_finished_semaphore{ graphics_device, vkDestroySemaphore };
 
 	const int window_width = 1920;
 	const int window_height = 1080;
@@ -76,7 +90,16 @@ private:
 	void createLogicalDevice();
 	void createSwapChain();
 	void createImageViews();
+	void createRenderPass();
 	void createGraphicsPipeline();
+	void createFrameBuffers();
+	void createCommandPool();
+	void createCommandBuffers();
+	void createSemaphores();
+
+	void drawFrame();
+
+	void createShaderModule(const std::vector<char>& code, VkShaderModule* p_shader_module);
 	
 	bool checkValidationLayerSupport();
 	std::vector<const char*> getRequiredExtensions();
