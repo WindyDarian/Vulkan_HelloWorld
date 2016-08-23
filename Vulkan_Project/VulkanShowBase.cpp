@@ -117,10 +117,12 @@ void VulkanShowBase::run()
 VkResult VulkanShowBase::CreateDebugReportCallbackEXT(VkInstance instance, const VkDebugReportCallbackCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugReportCallbackEXT* pCallback)
 {
 	auto func = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
-	if (func != nullptr) {
+	if (func != nullptr) 
+	{
 		return func(instance, pCreateInfo, pAllocator, pCallback);
 	}
-	else {
+	else 
+	{
 		return VK_ERROR_EXTENSION_NOT_PRESENT;
 	}
 }
@@ -238,24 +240,22 @@ void VulkanShowBase::createInstance()
 	}
 
 
-	VkApplicationInfo appInfo = {}; // optional
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pApplicationName = "Vulkan Hello World";
-	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.pEngineName = "No Engine";
-	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.apiVersion = VK_API_VERSION_1_0;
+	VkApplicationInfo app_info = {}; // optional
+	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	app_info.pApplicationName = "Vulkan Hello World";
+	app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+	app_info.pEngineName = "No Engine";
+	app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+	app_info.apiVersion = VK_API_VERSION_1_0;
 
-	VkInstanceCreateInfo createInfo = {}; // not optional
-	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	createInfo.pApplicationInfo = &appInfo;
+	VkInstanceCreateInfo instance_info = {}; // not optional
+	instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	instance_info.pApplicationInfo = &app_info;
 
 	// Getting Vulkan instance extensions required by GLFW
-	/*unsigned int glfwExtensionCount = 0;
-	const char** glfwExtensions;*/
-	auto glfwExtensions = getRequiredExtensions();// glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+	auto glfwExtensions = getRequiredExtensions();
 
-												  // Getting Vulkan supported extensions
+	// Getting Vulkan supported extensions
 	uint32_t extensionCount = 0;
 	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
 	std::vector<VkExtensionProperties> extensions(extensionCount);
@@ -282,18 +282,18 @@ void VulkanShowBase::createInstance()
 	}
 
 	// Enable required extensions
-	createInfo.enabledExtensionCount = static_cast<uint32_t>(glfwExtensions.size());
-	createInfo.ppEnabledExtensionNames = glfwExtensions.data();
+	instance_info.enabledExtensionCount = static_cast<uint32_t>(glfwExtensions.size());
+	instance_info.ppEnabledExtensionNames = glfwExtensions.data();
 
 	if (ENABLE_VALIDATION_LAYERS) {
-		createInfo.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
-		createInfo.ppEnabledLayerNames = VALIDATION_LAYERS.data();
+		instance_info.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
+		instance_info.ppEnabledLayerNames = VALIDATION_LAYERS.data();
 	}
 	else {
-		createInfo.enabledLayerCount = 0;
+		instance_info.enabledLayerCount = 0;
 	}
 
-	VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
+	VkResult result = vkCreateInstance(&instance_info, nullptr, &instance);
 	if (result != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create instance!");
@@ -423,33 +423,34 @@ bool VulkanShowBase::isDeviceSuitable(VkPhysicalDevice device)
 
 	QueueFamilyIndices indices = QueueFamilyIndices::findQueueFamilies(device, static_cast<VkSurfaceKHR>(window_surface));
 
-	bool extensions_suppored = checkDeviceExtensionSupport(device);
+	bool extensions_supported = checkDeviceExtensionSupport(device);
 
 	bool swap_chain_adequate = false;
-	if (extensions_suppored)
+	if (extensions_supported)
 	{
 		auto swap_chain_support = SwapChainSupportDetails::querySwapChainSupport(device, static_cast<VkSurfaceKHR>(window_surface));
 		swap_chain_adequate = !swap_chain_support.formats.empty() && !swap_chain_support.present_modes.empty();
 	}
 
-	return indices.isComplete() && extensions_suppored && swap_chain_adequate;
+	return indices.isComplete() && extensions_supported && swap_chain_adequate;
 }
 
 bool VulkanShowBase::checkDeviceExtensionSupport(VkPhysicalDevice device)
 {
-	uint32_t extensionCount;
-	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+	uint32_t extension_count;
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &extension_count, nullptr);
 
-	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
+	std::vector<VkExtensionProperties> available_extensions(extension_count);
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &extension_count, available_extensions.data());
 
-	std::set<std::string> requiredExtensions(DEVICE_EXTENSIONS.begin(), DEVICE_EXTENSIONS.end());
+	std::set<std::string> required_extensions(DEVICE_EXTENSIONS.begin(), DEVICE_EXTENSIONS.end());
 
-	for (const auto& extension : availableExtensions) {
-		requiredExtensions.erase(extension.extensionName);
+	for (const auto& extension : available_extensions) 
+	{
+		required_extensions.erase(extension.extensionName);
 	}
 
-	return requiredExtensions.empty();
+	return required_extensions.empty();
 }
 
 void VulkanShowBase::createLogicalDevice()
@@ -947,7 +948,7 @@ void VulkanShowBase::drawFrame()
 
 	// 2. Submitting the command buffer
 	VkSubmitInfo submit_info = {};
-	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;\
+	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	VkSemaphore wait_semaphores[] = { image_available_semaphore }; // which semaphore to wait
 	VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // which stage to execute
 	submit_info.waitSemaphoreCount = 1;
