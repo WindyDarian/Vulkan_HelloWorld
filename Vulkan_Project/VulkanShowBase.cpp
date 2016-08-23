@@ -200,6 +200,18 @@ void VulkanShowBase::mainLoop()
 	vkDeviceWaitIdle(graphics_device);
 }
 
+void VulkanShowBase::recreateSwapChain()
+{
+	vkDeviceWaitIdle(graphics_device);
+
+	createSwapChain();
+	createImageViews();
+	createRenderPass();
+	createGraphicsPipeline();
+	createFrameBuffers();
+	createCommandBuffers();
+}
+
 void VulkanShowBase::createInstance()
 {
 	if (ENABLE_VALIDATION_LAYERS && !checkValidationLayerSupport())
@@ -503,6 +515,9 @@ void VulkanShowBase::createSwapChain()
 	create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // render directly
 	// VK_IMAGE_USAGE_TRANSFER_DST_BIT and memory operation to enable post processing
 
+	//VkSwapchainKHR oldSwapChain = swap_chain;
+	//create_info.oldSwapchain = oldSwapChain;
+
 	QueueFamilyIndices indices = QueueFamilyIndices::findQueueFamilies(physical_device, window_surface);
 	uint32_t queueFamilyIndices[] = { (uint32_t)indices.graphicsFamily, (uint32_t)indices.presentFamily };
 
@@ -544,9 +559,13 @@ void VulkanShowBase::createSwapChain()
 
 void VulkanShowBase::createImageViews()
 {
-	swap_chain_imageviews.resize(swap_chain_images.size(), VDeleter<VkImageView>{graphics_device, vkDestroyImageView});
+	swap_chain_imageviews.clear(); // VDeleter will delete old objects
+	swap_chain_imageviews.reserve(swap_chain_images.size());
+
 	for (uint32_t i = 0; i < swap_chain_images.size(); i++) 
 	{
+		swap_chain_imageviews.push_back(std::move(VDeleter<VkImageView>( graphics_device, vkDestroyImageView )));
+
 		VkImageViewCreateInfo create_info = {};
 		create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		create_info.image = swap_chain_images[i];
@@ -772,11 +791,13 @@ void VulkanShowBase::createGraphicsPipeline()
 
 void VulkanShowBase::createFrameBuffers()
 {
-	swap_chain_framebuffers.resize(swap_chain_imageviews.size()
-		, VDeleter<VkFramebuffer>{graphics_device, vkDestroyFramebuffer});
+	swap_chain_framebuffers.clear(); // VDeleter will delete old objects
+	swap_chain_framebuffers.reserve(swap_chain_imageviews.size());
 
 	for (size_t i = 0; i < swap_chain_imageviews.size(); i++)
 	{
+		swap_chain_framebuffers.push_back(VDeleter<VkFramebuffer>{ graphics_device, vkDestroyFramebuffer });
+
 		VkImageView attachments[] = { swap_chain_imageviews[i] };
 
 		VkFramebufferCreateInfo framebuffer_info = {};

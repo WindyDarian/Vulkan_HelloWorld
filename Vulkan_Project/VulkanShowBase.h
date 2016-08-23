@@ -83,6 +83,8 @@ private:
 	void initVulkan();
 	void mainLoop();
 
+	void recreateSwapChain();
+
 	void createInstance();
 	void setupDebugCallback();
 	void createWindowSurface();
