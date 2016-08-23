@@ -11,7 +11,7 @@ class VDeleter
 public:
 	VDeleter()
 		: object(VK_NULL_HANDLE)
-		, deleter( [](T obj) {} )
+		, deleter( [](T obj) { std::runtime_error("VDeleter with empty deleter destroyed while resource was not VK_NULL_HANDLE")} )
 	{}
 
 	VDeleter(std::function<void(T, VkAllocationCallbacks*)> deletef)
@@ -28,6 +28,14 @@ public:
 		: object(VK_NULL_HANDLE)
 		, deleter( [&device, deletef](T obj) { deletef(device, obj, nullptr); } )
 	{}
+
+	//// Create a VDeleter by copying deleter function (not the object) from a template. 
+	//static VDeleter<T> createByCopyingDeleter(const VDeleter<T>& other)
+	//{
+	//	VDeleter<T> result = {};
+	//	result.deleter = other.deleter;
+	//	return result;
+	//}
 
 	~VDeleter()
 	{
@@ -46,7 +54,8 @@ public:
 	}
 
 	VDeleter(VDeleter<T>&& other)
-		:object(VK_NULL_HANDLE) //to be swapped to "other"
+		: object(VK_NULL_HANDLE) // to be swapped to "other"
+		, deleter(other.deleter) // deleter will be copied in case there is still use for the old container
 	{
 		swap(*this, other);
 	}

@@ -27,6 +27,17 @@ public:
 	VulkanShowBase();
 	void run();
 
+	static void onWindowResized(GLFWwindow* window, int width, int height);
+
+	static void DestroyDebugReportCallbackEXT(VkInstance instance
+		, VkDebugReportCallbackEXT callback
+		, const VkAllocationCallbacks* pAllocator);
+
+	static VkResult CreateDebugReportCallbackEXT(VkInstance instance
+		, const VkDebugReportCallbackCreateInfoEXT* pCreateInfo
+		, const VkAllocationCallbacks* pAllocator
+		, VkDebugReportCallbackEXT* pCallback);
+
 private:
 	GLFWwindow* window;
 
@@ -60,9 +71,9 @@ private:
 	VDeleter<VkSemaphore> image_available_semaphore{ graphics_device, vkDestroySemaphore };
 	VDeleter<VkSemaphore> render_finished_semaphore{ graphics_device, vkDestroySemaphore };
 
-	const int window_width = 1920;
-	const int window_height = 1080;
-
+	const int WINDOW_WIDTH = 1920;
+	const int WINDOW_HEIGHT = 1080;
+	const bool WINDOW_RESIZABLE = true;
 
 #ifdef NDEBUG
 	// if not debugging
@@ -112,13 +123,6 @@ private:
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& available_present_modes);
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
-	static void DestroyDebugReportCallbackEXT(VkInstance instance
-		, VkDebugReportCallbackEXT callback
-		, const VkAllocationCallbacks* pAllocator);
 
-	static VkResult CreateDebugReportCallbackEXT(VkInstance instance
-		, const VkDebugReportCallbackCreateInfoEXT* pCreateInfo
-		, const VkAllocationCallbacks* pAllocator
-		, VkDebugReportCallbackEXT* pCallback);
 };
 

@@ -155,11 +155,29 @@ void VulkanShowBase::initWindow()
 	glfwInit();
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // no OpenGL context
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-	window = glfwCreateWindow(window_width, window_height, "Vulkan Hello World", nullptr, nullptr);
+	if (WINDOW_RESIZABLE)
+	{
+		glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+	}
+	else
+	{
+		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	}
+
+	window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Vulkan Hello World", nullptr, nullptr);
+
+	glfwSetWindowUserPointer(window, this);
+	glfwSetWindowSizeCallback(window, VulkanShowBase::onWindowResized);
 }
 
+void VulkanShowBase::onWindowResized(GLFWwindow * window, int width, int height)
+{
+	if (width == 0 || height == 0) return;
+
+	VulkanShowBase* app = reinterpret_cast<VulkanShowBase*>(glfwGetWindowUserPointer(window));
+	app->recreateSwapChain();
+}
 
 void VulkanShowBase::initVulkan()
 {
@@ -515,9 +533,6 @@ void VulkanShowBase::createSwapChain()
 	create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // render directly
 	// VK_IMAGE_USAGE_TRANSFER_DST_BIT and memory operation to enable post processing
 
-	//VkSwapchainKHR oldSwapChain = swap_chain;
-	//create_info.oldSwapchain = oldSwapChain;
-
 	QueueFamilyIndices indices = QueueFamilyIndices::findQueueFamilies(physical_device, window_surface);
 	uint32_t queueFamilyIndices[] = { (uint32_t)indices.graphicsFamily, (uint32_t)indices.presentFamily };
 
@@ -539,7 +554,9 @@ void VulkanShowBase::createSwapChain()
 
 	create_info.presentMode = present_mode;
 	create_info.clipped = VK_TRUE; // ignore pixels obscured
-	create_info.oldSwapchain = VK_NULL_HANDLE; // required when recreating a swap chain (like resizing windows)
+
+	auto old_swap_chain = std::move(swap_chain); //which will be destroyed when out of scope
+	create_info.oldSwapchain = old_swap_chain; // required when recreating a swap chain (like resizing windows)
 
 	auto result = vkCreateSwapchainKHR(graphics_device, &create_info, nullptr, &swap_chain);
 
@@ -837,6 +854,12 @@ void VulkanShowBase::createCommandPool()
 
 void VulkanShowBase::createCommandBuffers()
 {
+	// Free old command buffers, if any
+	if (command_buffers.size() > 0)
+	{
+		vkFreeCommandBuffers(graphics_device, command_pool, (uint32_t)command_buffers.size(), command_buffers.data());
+	}
+
 	command_buffers.resize(swap_chain_framebuffers.size());
 
 	VkCommandBufferAllocateInfo alloc_info = {};
@@ -908,8 +931,19 @@ void VulkanShowBase::drawFrame()
 {
 	// 1. Acquiring an image from the swap chain
 	uint32_t image_index;
-	vkAcquireNextImageKHR(graphics_device, swap_chain, ACQUIRE_NEXT_IMAGE_TIMEOUT,
-		image_available_semaphore, VK_NULL_HANDLE, &image_index);
+	auto aquiring_result = vkAcquireNextImageKHR(graphics_device, swap_chain
+		, ACQUIRE_NEXT_IMAGE_TIMEOUT, image_available_semaphore, VK_NULL_HANDLE, &image_index);
+
+	if (aquiring_result == VK_ERROR_OUT_OF_DATE_KHR) 
+	{
+		// when swap chain needs recreation
+		recreateSwapChain();
+		return;
+	}
+	else if (aquiring_result != VK_SUCCESS && aquiring_result != VK_SUBOPTIMAL_KHR) 
+	{
+		throw std::runtime_error("Failed to acquire swap chain image!");
+	}
 
 	// 2. Submitting the command buffer
 	VkSubmitInfo submit_info = {};
@@ -927,7 +961,7 @@ void VulkanShowBase::drawFrame()
 
 	auto submit_result = vkQueueSubmit(graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
 	if (submit_result != VK_SUCCESS) {
-		throw std::runtime_error("failed to submit draw command buffer!");
+		throw std::runtime_error("Failed to submit draw command buffer!");
 	}
 
 	// 3. Submitting the result back to the swap chain to show it on screen
@@ -941,7 +975,16 @@ void VulkanShowBase::drawFrame()
 	present_info.pImageIndices = &image_index;
 	present_info.pResults = nullptr; // Optional, check for if every single chains is successful
 
-	vkQueuePresentKHR(present_queue, &present_info);
+	auto present_result = vkQueuePresentKHR(present_queue, &present_info);
+
+	if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) 
+	{
+		recreateSwapChain();
+	}
+	else if (present_result != VK_SUCCESS) 
+	{
+		throw std::runtime_error("Failed to present swap chain image!");
+	}
 }
 
 void VulkanShowBase::createShaderModule(const std::vector<char>& code, VkShaderModule* p_shader_module)
@@ -1002,7 +1045,7 @@ VkExtent2D VulkanShowBase::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capa
 	}
 	else
 	{
-		VkExtent2D actual_extent = { (uint32_t)window_width, (uint32_t)window_height };
+		VkExtent2D actual_extent = { (uint32_t)WINDOW_WIDTH, (uint32_t)WINDOW_HEIGHT };
 
 		actual_extent.width = std::max(capabilities.minImageExtent.width
 			, std::min(capabilities.maxImageExtent.width, actual_extent.width));
