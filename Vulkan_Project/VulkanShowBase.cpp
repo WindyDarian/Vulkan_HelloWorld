@@ -194,6 +194,7 @@ void VulkanShowBase::initVulkan()
 	createGraphicsPipeline();
 	createFrameBuffers();
 	createCommandPool();
+	createVertexBuffer();
 	createCommandBuffers();
 	createSemaphores();
 }
@@ -679,10 +680,14 @@ void VulkanShowBase::createGraphicsPipeline()
 	// vertex data info
 	VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
 	vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertex_input_info.vertexBindingDescriptionCount = 0;
-	vertex_input_info.pVertexBindingDescriptions = nullptr; // Optional
-	vertex_input_info.vertexAttributeDescriptionCount = 0;
-	vertex_input_info.pVertexAttributeDescriptions = nullptr; // Optional
+	
+	auto binding_description = Vertex::getBindingDesciption();
+	auto attr_description = Vertex::getAttributeDescriptions();
+	
+	vertex_input_info.vertexBindingDescriptionCount = 1;
+	vertex_input_info.pVertexBindingDescriptions = &binding_description;
+	vertex_input_info.vertexAttributeDescriptionCount = attr_description.size();
+	vertex_input_info.pVertexAttributeDescriptions = attr_description.data(); // Optional
 
 	// input assembler
 	VkPipelineInputAssemblyStateCreateInfo input_assembly_info = {};
@@ -853,6 +858,72 @@ void VulkanShowBase::createCommandPool()
 	}
 }
 
+uint32_t findMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties, VkPhysicalDevice physical_device)
+{
+	VkPhysicalDeviceMemoryProperties memory_properties;
+	vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
+
+	for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++)
+	{
+		bool type_supported = (type_filter & (1 << i)) != 0;
+		bool properties_supported = ((memory_properties.memoryTypes[i].propertyFlags & properties) == properties);
+		if (type_supported && properties_supported)
+		{
+			return i;
+		}
+	}
+
+	throw std::runtime_error("Failed to find suitable memory type!");
+}
+
+void VulkanShowBase::createVertexBuffer()
+{
+	// create vertex buffer
+	VkBufferCreateInfo buffer_info = {};
+	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	buffer_info.size = sizeof(vertices[0]) * vertices.size();
+	buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // only be used in graphics queue
+	buffer_info.flags = 0;
+
+	auto buffer_result = vkCreateBuffer(graphics_device, &buffer_info, nullptr, &vertex_buffer);
+
+	if (buffer_result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create vertex buffer!");
+	}
+
+	// allocate memory for buffer
+	VkMemoryRequirements memory_req;
+	vkGetBufferMemoryRequirements(graphics_device, vertex_buffer, &memory_req);
+
+	VkMemoryAllocateInfo memory_alloc_info = {};
+	memory_alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memory_alloc_info.allocationSize = memory_req.size;
+	memory_alloc_info.memoryTypeIndex = findMemoryType(memory_req.memoryTypeBits
+		, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+		, physical_device);
+
+	auto memory_result = vkAllocateMemory(graphics_device, &memory_alloc_info, nullptr, &vertex_buffer_memory);
+	if (memory_result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create vertex buffer memory!");
+	}
+
+	// bind buffer with memory
+	auto bind_result = vkBindBufferMemory(graphics_device, vertex_buffer, vertex_buffer_memory, 0);
+	if (bind_result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to bind vertex buffer memory!");
+	}
+
+	// filling the vertex buffer
+	void* data;
+	vkMapMemory(graphics_device, vertex_buffer_memory, 0, buffer_info.size, 0, &data); // access the graphics memory using mapping
+	memcpy(data, vertices.data(), (size_t)buffer_info.size); // may not be immediate due to memory caching or write operation not visiable without VK_MEMORY_PROPERTY_HOST_COHERENT_BIT or explict flusing
+	vkUnmapMemory(graphics_device, vertex_buffer_memory);
+}
+
 void VulkanShowBase::createCommandBuffers()
 {
 	// Free old command buffers, if any
@@ -900,7 +971,13 @@ void VulkanShowBase::createCommandBuffers()
 		vkCmdBeginRenderPass(command_buffers[i], &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
 		vkCmdBindPipeline(command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
-		vkCmdDraw(command_buffers[i], 3, 1, 0, 0);
+
+		// bind vertex buffer
+		VkBuffer vertex_buffers[] = { vertex_buffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(command_buffers[i], 0, 1, vertex_buffers, offsets);
+
+		vkCmdDraw(command_buffers[i], vertices.size(), 1, 0, 0);
 
 		vkCmdEndRenderPass(command_buffers[i]);
 

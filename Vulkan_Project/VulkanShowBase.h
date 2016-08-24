@@ -5,8 +5,40 @@
 #include <vulkan/vulkan.h>
 #define GLFW_INCLUDE_VULKAN
 #include <glfw/glfw3.h>
+#include <glm/glm.hpp>
 
 #include <vector>
+#include <array>
+
+struct Vertex
+{
+	glm::vec2 pos;
+	glm::vec3 color;
+
+	static VkVertexInputBindingDescription getBindingDesciption()
+	{
+		VkVertexInputBindingDescription binding_description = {};
+		binding_description.binding = 0; // index of the binding, defined in vertex shader
+		binding_description.stride = sizeof(Vertex);
+		binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX; // move to next data engty after each vertex
+		return binding_description;
+	}
+
+	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions()
+	{
+		std::array<VkVertexInputAttributeDescription, 2> attr_descriptions = {};
+		attr_descriptions[0].binding = 0; 
+		attr_descriptions[0].location = 0;
+		attr_descriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+		attr_descriptions[0].offset = offsetof(Vertex, pos); //bytes of a member since beginning of struct
+		attr_descriptions[1].binding = 0;
+		attr_descriptions[1].location = 1;
+		attr_descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attr_descriptions[1].offset = offsetof(Vertex, color); //bytes of a member since beginning of struct
+
+		return attr_descriptions;
+	}
+};
 
 struct QueueFamilyIndices
 {
@@ -71,9 +103,17 @@ private:
 	VDeleter<VkSemaphore> image_available_semaphore{ graphics_device, vkDestroySemaphore };
 	VDeleter<VkSemaphore> render_finished_semaphore{ graphics_device, vkDestroySemaphore };
 
+	VDeleter<VkBuffer> vertex_buffer{ graphics_device, vkDestroyBuffer };
+	VDeleter<VkDeviceMemory> vertex_buffer_memory{ graphics_device, vkFreeMemory };
+
 	const int WINDOW_WIDTH = 1920;
 	const int WINDOW_HEIGHT = 1080;
 	const bool WINDOW_RESIZABLE = true;
+	const std::vector<Vertex> vertices = {
+		{{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+		{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+		{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+	};
 
 #ifdef NDEBUG
 	// if not debugging
@@ -107,6 +147,7 @@ private:
 	void createGraphicsPipeline();
 	void createFrameBuffers();
 	void createCommandPool();
+	void createVertexBuffer();
 	void createCommandBuffers();
 	void createSemaphores();
 
@@ -118,6 +159,7 @@ private:
 	std::vector<const char*> getRequiredExtensions();
 	bool isDeviceSuitable(VkPhysicalDevice device);
 	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+	
 
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& available_formats);
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& available_present_modes);
