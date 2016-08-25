@@ -876,51 +876,61 @@ uint32_t findMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties, 
 	throw std::runtime_error("Failed to find suitable memory type!");
 }
 
-void VulkanShowBase::createVertexBuffer()
+void VulkanShowBase::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags property_bits
+	, VDeleter<VkBuffer>& buffer, VDeleter<VkDeviceMemory>& buffer_memory)
 {
 	// create vertex buffer
 	VkBufferCreateInfo buffer_info = {};
 	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	buffer_info.size = sizeof(vertices[0]) * vertices.size();
-	buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // only be used in graphics queue
+	buffer_info.size = size;
+	buffer_info.usage = usage;
+	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // vertex buffer only used in graphics queue
 	buffer_info.flags = 0;
 
-	auto buffer_result = vkCreateBuffer(graphics_device, &buffer_info, nullptr, &vertex_buffer);
+	auto buffer_result = vkCreateBuffer(graphics_device, &buffer_info, nullptr, &buffer);
 
 	if (buffer_result != VK_SUCCESS)
 	{
-		throw std::runtime_error("Failed to create vertex buffer!");
+		throw std::runtime_error("Failed to create buffer!");
 	}
 
 	// allocate memory for buffer
 	VkMemoryRequirements memory_req;
-	vkGetBufferMemoryRequirements(graphics_device, vertex_buffer, &memory_req);
+	vkGetBufferMemoryRequirements(graphics_device, buffer, &memory_req);
 
 	VkMemoryAllocateInfo memory_alloc_info = {};
 	memory_alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	memory_alloc_info.allocationSize = memory_req.size;
 	memory_alloc_info.memoryTypeIndex = findMemoryType(memory_req.memoryTypeBits
-		, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+		, property_bits
 		, physical_device);
 
-	auto memory_result = vkAllocateMemory(graphics_device, &memory_alloc_info, nullptr, &vertex_buffer_memory);
+	auto memory_result = vkAllocateMemory(graphics_device, &memory_alloc_info, nullptr, &buffer_memory);
 	if (memory_result != VK_SUCCESS)
 	{
-		throw std::runtime_error("Failed to create vertex buffer memory!");
+		throw std::runtime_error("Failed to allocate buffer memory!");
 	}
 
 	// bind buffer with memory
-	auto bind_result = vkBindBufferMemory(graphics_device, vertex_buffer, vertex_buffer_memory, 0);
+	auto bind_result = vkBindBufferMemory(graphics_device, buffer, buffer_memory, 0);
 	if (bind_result != VK_SUCCESS)
 	{
-		throw std::runtime_error("Failed to bind vertex buffer memory!");
+		throw std::runtime_error("Failed to bind buffer memory!");
 	}
+}
+
+void VulkanShowBase::createVertexBuffer()
+{
+	VkDeviceSize buffer_size = sizeof(vertices[0]) * vertices.size();
+	createBuffer(buffer_size
+		, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+		, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+		, vertex_buffer, vertex_buffer_memory);
 
 	// filling the vertex buffer
 	void* data;
-	vkMapMemory(graphics_device, vertex_buffer_memory, 0, buffer_info.size, 0, &data); // access the graphics memory using mapping
-	memcpy(data, vertices.data(), (size_t)buffer_info.size); // may not be immediate due to memory caching or write operation not visiable without VK_MEMORY_PROPERTY_HOST_COHERENT_BIT or explict flusing
+	vkMapMemory(graphics_device, vertex_buffer_memory, 0, buffer_size, 0, &data); // access the graphics memory using mapping
+		memcpy(data, vertices.data(), (size_t)buffer_size); // may not be immediate due to memory caching or write operation not visiable without VK_MEMORY_PROPERTY_HOST_COHERENT_BIT or explict flusing
 	vkUnmapMemory(graphics_device, vertex_buffer_memory);
 }
 
