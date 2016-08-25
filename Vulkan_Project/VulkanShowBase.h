@@ -105,14 +105,21 @@ private:
 
 	VDeleter<VkBuffer> vertex_buffer{ graphics_device, vkDestroyBuffer };
 	VDeleter<VkDeviceMemory> vertex_buffer_memory{ graphics_device, vkFreeMemory };
+	VDeleter<VkBuffer> index_buffer{ graphics_device, vkDestroyBuffer };
+	VDeleter<VkDeviceMemory> index_buffer_memory{ graphics_device, vkFreeMemory };
 
 	const int WINDOW_WIDTH = 1920;
 	const int WINDOW_HEIGHT = 1080;
 	const bool WINDOW_RESIZABLE = true;
-	const std::vector<Vertex> vertices = {
-		{{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
-		{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-		{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+
+	const std::vector<Vertex> VERTICES = {
+		{ { -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f } },
+		{ { 0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f } },
+		{ { 0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f } },
+		{ { -0.5f, 0.5f },{ 1.0f, 1.0f, 1.0f } }
+	};
+	const std::vector<uint32_t> VERTEX_INDICES = {
+		0, 1, 2, 2, 3, 0
 	};
 
 #ifdef NDEBUG
@@ -148,6 +155,7 @@ private:
 	void createFrameBuffers();
 	void createCommandPool();
 	void createVertexBuffer();
+	void createIndexBuffer();
 	void createCommandBuffers();
 	void createSemaphores();
 

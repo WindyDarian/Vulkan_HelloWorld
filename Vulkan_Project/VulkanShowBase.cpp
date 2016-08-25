@@ -194,7 +194,9 @@ void VulkanShowBase::initVulkan()
 	createGraphicsPipeline();
 	createFrameBuffers();
 	createCommandPool();
+	// TODO: better to use a single memory allocation for multiple buffers
 	createVertexBuffer();
+	createIndexBuffer();
 	createCommandBuffers();
 	createSemaphores();
 }
@@ -958,7 +960,7 @@ void VulkanShowBase::copyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDevi
 
 void VulkanShowBase::createVertexBuffer()
 {
-	VkDeviceSize buffer_size = sizeof(vertices[0]) * vertices.size();
+	VkDeviceSize buffer_size = sizeof(VERTICES[0]) * VERTICES.size();
 
 	// create staging buffer
 	VDeleter<VkBuffer> staging_buffer{ graphics_device, vkDestroyBuffer };
@@ -972,7 +974,7 @@ void VulkanShowBase::createVertexBuffer()
 	// copy data to staging buffer
 	void* data;
 	vkMapMemory(graphics_device, staging_buffer_memory, 0, buffer_size, 0, &data); // access the graphics memory using mapping
-		memcpy(data, vertices.data(), (size_t)buffer_size); // may not be immediate due to memory caching or write operation not visiable without VK_MEMORY_PROPERTY_HOST_COHERENT_BIT or explict flusing
+		memcpy(data, VERTICES.data(), (size_t)buffer_size); // may not be immediate due to memory caching or write operation not visiable without VK_MEMORY_PROPERTY_HOST_COHERENT_BIT or explict flusing
 	vkUnmapMemory(graphics_device, staging_buffer_memory);
 
 	// create vertex buffer at optimized local memory which may not be directly accessable by memory mapping
@@ -985,6 +987,34 @@ void VulkanShowBase::createVertexBuffer()
 
 	// copy content of staging buffer to vertex buffer
 	copyBuffer(staging_buffer, vertex_buffer, buffer_size);
+}
+
+void VulkanShowBase::createIndexBuffer()
+{
+	VkDeviceSize buffer_size = sizeof(VERTEX_INDICES[0]) * VERTEX_INDICES.size();
+
+	// create staging buffer
+	VDeleter<VkBuffer> staging_buffer{ graphics_device, vkDestroyBuffer };
+	VDeleter<VkDeviceMemory> staging_buffer_memory{ graphics_device, vkFreeMemory };
+	createBuffer(buffer_size
+		, VK_BUFFER_USAGE_TRANSFER_SRC_BIT // to be transfered from
+		, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+		, &staging_buffer
+		, &staging_buffer_memory);
+
+	void* data;
+	vkMapMemory(graphics_device, staging_buffer_memory, 0, buffer_size, 0, &data); // access the graphics memory using mapping
+	memcpy(data, VERTEX_INDICES.data(), (size_t)buffer_size); // may not be immediate due to memory caching or write operation not visiable without VK_MEMORY_PROPERTY_HOST_COHERENT_BIT or explict flusing
+	vkUnmapMemory(graphics_device, staging_buffer_memory);
+
+	createBuffer(buffer_size
+		, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT
+		, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+		, &index_buffer
+		, &index_buffer_memory);
+
+	// copy content of staging buffer to index buffer
+	copyBuffer(staging_buffer, index_buffer, buffer_size);
 }
 
 void VulkanShowBase::createCommandBuffers()
@@ -1039,8 +1069,13 @@ void VulkanShowBase::createCommandBuffers()
 		VkBuffer vertex_buffers[] = { vertex_buffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(command_buffers[i], 0, 1, vertex_buffers, offsets);
+		//vkCmdBindIndexBuffer(command_buffers[i], index_buffer, 0, VK_INDEX_TYPE_UINT16);
+		vkCmdBindIndexBuffer(command_buffers[i], index_buffer, 0, VK_INDEX_TYPE_UINT32);
 
-		vkCmdDraw(command_buffers[i], vertices.size(), 1, 0, 0);
+		// TODO: better to store vertex buffer and index buffer in a single VkBuffer
+
+		//vkCmdDraw(command_buffers[i], VERTICES.size(), 1, 0, 0);
+		vkCmdDrawIndexed(command_buffers[i], VERTEX_INDICES.size(), 1, 0, 0, 0);
 
 		vkCmdEndRenderPass(command_buffers[i]);
 
