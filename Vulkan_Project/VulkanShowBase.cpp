@@ -877,7 +877,7 @@ uint32_t findMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties, 
 }
 
 void VulkanShowBase::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags property_bits
-	, VDeleter<VkBuffer>& buffer, VDeleter<VkDeviceMemory>& buffer_memory)
+	, VkBuffer* p_buffer, VkDeviceMemory* p_buffer_memory)
 {
 	// create vertex buffer
 	VkBufferCreateInfo buffer_info = {};
@@ -887,7 +887,7 @@ void VulkanShowBase::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, V
 	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // vertex buffer only used in graphics queue
 	buffer_info.flags = 0;
 
-	auto buffer_result = vkCreateBuffer(graphics_device, &buffer_info, nullptr, &buffer);
+	auto buffer_result = vkCreateBuffer(graphics_device, &buffer_info, nullptr, p_buffer);
 
 	if (buffer_result != VK_SUCCESS)
 	{
@@ -896,7 +896,7 @@ void VulkanShowBase::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, V
 
 	// allocate memory for buffer
 	VkMemoryRequirements memory_req;
-	vkGetBufferMemoryRequirements(graphics_device, buffer, &memory_req);
+	vkGetBufferMemoryRequirements(graphics_device, *p_buffer, &memory_req);
 
 	VkMemoryAllocateInfo memory_alloc_info = {};
 	memory_alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -905,33 +905,86 @@ void VulkanShowBase::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, V
 		, property_bits
 		, physical_device);
 
-	auto memory_result = vkAllocateMemory(graphics_device, &memory_alloc_info, nullptr, &buffer_memory);
+	auto memory_result = vkAllocateMemory(graphics_device, &memory_alloc_info, nullptr, p_buffer_memory);
 	if (memory_result != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate buffer memory!");
 	}
 
 	// bind buffer with memory
-	auto bind_result = vkBindBufferMemory(graphics_device, buffer, buffer_memory, 0);
+	auto bind_result = vkBindBufferMemory(graphics_device, *p_buffer, *p_buffer_memory, 0);
 	if (bind_result != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to bind buffer memory!");
 	}
 }
 
+void VulkanShowBase::copyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
+{	
+	// create a temperorary command buffer for copy operation
+	VkCommandBufferAllocateInfo alloc_info = {};
+	alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	alloc_info.commandPool = command_pool;
+	alloc_info.commandBufferCount = 1;
+
+	VkCommandBuffer copy_command_buffer;
+	vkAllocateCommandBuffers(graphics_device, &alloc_info, &copy_command_buffer);
+
+	VkCommandBufferBeginInfo begin_info = {};
+	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	VkBufferCopy copy_region = {};
+	copy_region.srcOffset = 0; // Optional
+	copy_region.dstOffset = 0; // Optional
+	copy_region.size = size;
+
+	vkBeginCommandBuffer(copy_command_buffer, &begin_info);
+	vkCmdCopyBuffer(copy_command_buffer, src_buffer, dst_buffer, 1, &copy_region);
+	vkEndCommandBuffer(copy_command_buffer);
+
+	// execute the command buffer and wait for the execution
+	VkSubmitInfo submit_info = {};
+	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submit_info.commandBufferCount = 1;
+	submit_info.pCommandBuffers = &copy_command_buffer;
+	vkQueueSubmit(graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
+	vkQueueWaitIdle(graphics_queue);
+
+	// free the temperorary command buffer
+	vkFreeCommandBuffers(graphics_device, command_pool, 1, &copy_command_buffer);
+
+}
+
 void VulkanShowBase::createVertexBuffer()
 {
 	VkDeviceSize buffer_size = sizeof(vertices[0]) * vertices.size();
-	createBuffer(buffer_size
-		, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
-		, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-		, vertex_buffer, vertex_buffer_memory);
 
-	// filling the vertex buffer
+	// create staging buffer
+	VDeleter<VkBuffer> staging_buffer{ graphics_device, vkDestroyBuffer };
+	VDeleter<VkDeviceMemory> staging_buffer_memory{ graphics_device, vkFreeMemory };
+	createBuffer(buffer_size
+		, VK_BUFFER_USAGE_TRANSFER_SRC_BIT // to be transfered from
+		, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+		, &staging_buffer
+		, &staging_buffer_memory);
+
+	// copy data to staging buffer
 	void* data;
-	vkMapMemory(graphics_device, vertex_buffer_memory, 0, buffer_size, 0, &data); // access the graphics memory using mapping
+	vkMapMemory(graphics_device, staging_buffer_memory, 0, buffer_size, 0, &data); // access the graphics memory using mapping
 		memcpy(data, vertices.data(), (size_t)buffer_size); // may not be immediate due to memory caching or write operation not visiable without VK_MEMORY_PROPERTY_HOST_COHERENT_BIT or explict flusing
-	vkUnmapMemory(graphics_device, vertex_buffer_memory);
+	vkUnmapMemory(graphics_device, staging_buffer_memory);
+
+	// create vertex buffer at optimized local memory which may not be directly accessable by memory mapping
+	// as copy destination of staging buffer
+	createBuffer(buffer_size
+		, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+		, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+		, &vertex_buffer
+		, &vertex_buffer_memory);
+
+	// copy content of staging buffer to vertex buffer
+	copyBuffer(staging_buffer, vertex_buffer, buffer_size);
 }
 
 void VulkanShowBase::createCommandBuffers()
