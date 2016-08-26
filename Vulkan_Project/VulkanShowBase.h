@@ -40,6 +40,13 @@ struct Vertex
 	}
 };
 
+struct UniformBufferObject
+{
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 proj;
+};
+
 struct QueueFamilyIndices
 {
 	int graphicsFamily = -1;
@@ -93,6 +100,8 @@ private:
 	VDeleter<VkShaderModule> vert_shader_module{ graphics_device, vkDestroyShaderModule };
 	VDeleter<VkShaderModule> frag_shader_module{ graphics_device, vkDestroyShaderModule };
 	VDeleter<VkRenderPass> render_pass{ graphics_device, vkDestroyRenderPass };
+
+	VDeleter<VkDescriptorSetLayout> descriptor_set_layout{ graphics_device, vkDestroyDescriptorSetLayout };
 	VDeleter<VkPipelineLayout> pipeline_layout{ graphics_device, vkDestroyPipelineLayout };
 	VDeleter<VkPipeline> graphics_pipeline{ graphics_device, vkDestroyPipeline };
 
@@ -107,6 +116,14 @@ private:
 	VDeleter<VkDeviceMemory> vertex_buffer_memory{ graphics_device, vkFreeMemory };
 	VDeleter<VkBuffer> index_buffer{ graphics_device, vkDestroyBuffer };
 	VDeleter<VkDeviceMemory> index_buffer_memory{ graphics_device, vkFreeMemory };
+
+	VDeleter<VkBuffer> uniform_staging_buffer{ graphics_device, vkDestroyBuffer };
+	VDeleter<VkDeviceMemory> uniform_staging_buffer_memory{ graphics_device, vkFreeMemory };
+	VDeleter<VkBuffer> uniform_buffer{ graphics_device, vkDestroyBuffer };
+	VDeleter<VkDeviceMemory> uniform_buffer_memory{ graphics_device, vkFreeMemory };
+
+	VDeleter<VkDescriptorPool> descriptor_pool{ graphics_device, vkDestroyDescriptorPool };
+	VkDescriptorSet descriptor_set;
 
 	const int WINDOW_WIDTH = 1920;
 	const int WINDOW_HEIGHT = 1080;
@@ -151,14 +168,19 @@ private:
 	void createSwapChain();
 	void createImageViews();
 	void createRenderPass();
+	void createDescriptorSetLayout();
 	void createGraphicsPipeline();
 	void createFrameBuffers();
 	void createCommandPool();
 	void createVertexBuffer();
 	void createIndexBuffer();
+	void createUniformBuffer();
+	void createDescriptorPool();
+	void createDescriptorSet();
 	void createCommandBuffers();
 	void createSemaphores();
 
+	void updateUniformBuffer();
 	void drawFrame();
 
 	void createShaderModule(const std::vector<char>& code, VkShaderModule* p_shader_module);
