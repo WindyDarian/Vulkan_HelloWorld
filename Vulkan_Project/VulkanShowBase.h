@@ -112,11 +112,17 @@ private:
 	VDeleter<VkSemaphore> image_available_semaphore{ graphics_device, vkDestroySemaphore };
 	VDeleter<VkSemaphore> render_finished_semaphore{ graphics_device, vkDestroySemaphore };
 
+	// texture image
+	VDeleter<VkImage> texture_image{ graphics_device, vkDestroyImage };
+	VDeleter<VkDeviceMemory> texture_image_memory{ graphics_device, vkFreeMemory };
+
+	// vertex buffer
 	VDeleter<VkBuffer> vertex_buffer{ graphics_device, vkDestroyBuffer };
 	VDeleter<VkDeviceMemory> vertex_buffer_memory{ graphics_device, vkFreeMemory };
 	VDeleter<VkBuffer> index_buffer{ graphics_device, vkDestroyBuffer };
 	VDeleter<VkDeviceMemory> index_buffer_memory{ graphics_device, vkFreeMemory };
 
+	// uniform buffer and descriptor
 	VDeleter<VkBuffer> uniform_staging_buffer{ graphics_device, vkDestroyBuffer };
 	VDeleter<VkDeviceMemory> uniform_staging_buffer_memory{ graphics_device, vkFreeMemory };
 	VDeleter<VkBuffer> uniform_buffer{ graphics_device, vkDestroyBuffer };
@@ -124,6 +130,7 @@ private:
 
 	VDeleter<VkDescriptorPool> descriptor_pool{ graphics_device, vkDestroyDescriptorPool };
 	VkDescriptorSet descriptor_set;
+
 
 	const int WINDOW_WIDTH = 1920;
 	const int WINDOW_HEIGHT = 1080;
@@ -172,6 +179,7 @@ private:
 	void createGraphicsPipeline();
 	void createFrameBuffers();
 	void createCommandPool();
+	void createTextureImage();
 	void createVertexBuffer();
 	void createIndexBuffer();
 	void createUniformBuffer();
@@ -198,5 +206,18 @@ private:
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags property_bits
 		, VkBuffer* p_buffer, VkDeviceMemory* p_buffer_memory);
 	void copyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
+
+	void createImage(uint32_t image_width, uint32_t image_height
+		, VkFormat format, VkImageTiling tiling
+		, VkImageUsageFlags usage, VkMemoryPropertyFlags memory_properties
+		, VkImage* p_vkimage, VkDeviceMemory* p_image_memory);
+
+	void copyImage(VkImage src_image, VkImage dst_image, uint32_t width, uint32_t height);
+
+	void transitionImageLayout(VkImage image, VkImageLayout old_layout, VkImageLayout new_layout);
+
+
+	VkCommandBuffer beginSingleTimeCommands();
+	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 };
 
