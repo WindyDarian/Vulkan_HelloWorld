@@ -14,6 +14,7 @@ struct Vertex
 {
 	glm::vec2 pos;
 	glm::vec3 color;
+	glm::vec2 tex_coord;
 
 	static VkVertexInputBindingDescription getBindingDesciption()
 	{
@@ -24,9 +25,9 @@ struct Vertex
 		return binding_description;
 	}
 
-	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions()
+	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
 	{
-		std::array<VkVertexInputAttributeDescription, 2> attr_descriptions = {};
+		std::array<VkVertexInputAttributeDescription, 3> attr_descriptions = {};
 		attr_descriptions[0].binding = 0; 
 		attr_descriptions[0].location = 0;
 		attr_descriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
@@ -35,6 +36,10 @@ struct Vertex
 		attr_descriptions[1].location = 1;
 		attr_descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
 		attr_descriptions[1].offset = offsetof(Vertex, color); //bytes of a member since beginning of struct
+		attr_descriptions[2].binding = 0;
+		attr_descriptions[2].location = 2;
+		attr_descriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+		attr_descriptions[2].offset = offsetof(Vertex, tex_coord);
 
 		return attr_descriptions;
 	}
@@ -96,9 +101,6 @@ private:
 	VkExtent2D swap_chain_extent;
 	std::vector<VDeleter<VkImageView>> swap_chain_imageviews;
 	std::vector<VDeleter<VkFramebuffer>> swap_chain_framebuffers;
-
-	VDeleter<VkShaderModule> vert_shader_module{ graphics_device, vkDestroyShaderModule };
-	VDeleter<VkShaderModule> frag_shader_module{ graphics_device, vkDestroyShaderModule };
 	VDeleter<VkRenderPass> render_pass{ graphics_device, vkDestroyRenderPass };
 
 	VDeleter<VkDescriptorSetLayout> descriptor_set_layout{ graphics_device, vkDestroyDescriptorSetLayout };
@@ -115,6 +117,9 @@ private:
 	// texture image
 	VDeleter<VkImage> texture_image{ graphics_device, vkDestroyImage };
 	VDeleter<VkDeviceMemory> texture_image_memory{ graphics_device, vkFreeMemory };
+	VDeleter<VkImageView> texture_image_view{ graphics_device, vkDestroyImageView };
+	VDeleter<VkSampler> texture_sampler{ graphics_device, vkDestroySampler };
+
 
 	// vertex buffer
 	VDeleter<VkBuffer> vertex_buffer{ graphics_device, vkDestroyBuffer };
@@ -137,10 +142,10 @@ private:
 	const bool WINDOW_RESIZABLE = true;
 
 	const std::vector<Vertex> VERTICES = {
-		{ { -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f } },
-		{ { 0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f } },
-		{ { 0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f } },
-		{ { -0.5f, 0.5f },{ 1.0f, 1.0f, 1.0f } }
+		{ { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f }, {0.0f, 0.0f} },
+		{ { 0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, {0.0f, 1.0f} },
+		{ { 0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f }, {1.0f, 1.0f} },
+		{ { -0.5f, 0.5f }, { 1.0f, 1.0f, 1.0f }, {1.0f, 0.0f} }
 	};
 	const std::vector<uint32_t> VERTEX_INDICES = {
 		0, 1, 2, 2, 3, 0
@@ -180,6 +185,8 @@ private:
 	void createFrameBuffers();
 	void createCommandPool();
 	void createTextureImage();
+	void createTextureImageView();
+	void createTextureSampler();
 	void createVertexBuffer();
 	void createIndexBuffer();
 	void createUniformBuffer();
@@ -211,11 +218,10 @@ private:
 		, VkFormat format, VkImageTiling tiling
 		, VkImageUsageFlags usage, VkMemoryPropertyFlags memory_properties
 		, VkImage* p_vkimage, VkDeviceMemory* p_image_memory);
-
 	void copyImage(VkImage src_image, VkImage dst_image, uint32_t width, uint32_t height);
-
 	void transitionImageLayout(VkImage image, VkImageLayout old_layout, VkImageLayout new_layout);
 
+	void createImageView(VkImage image, VkFormat format, VkImageView* p_image_view);
 
 	VkCommandBuffer beginSingleTimeCommands();
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);

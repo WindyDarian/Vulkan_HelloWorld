@@ -16,7 +16,7 @@ public:
 
 	VDeleter(std::function<void(T, VkAllocationCallbacks*)> deletef)
 		: object(VK_NULL_HANDLE)
-		, deleter( [=](T obj) { deletef(obj, nullptr); } )
+		, deleter( [deletef](T obj) { deletef(obj, nullptr); } )
 	{}
 
 	VDeleter(const VDeleter<VkInstance>& instance, std::function<void(VkInstance, T, VkAllocationCallbacks*)> deletef)
@@ -68,12 +68,11 @@ public:
 	{
 		using std::swap;
 		swap(first.object, second.object);
-		swap(first.deleter, second.deleter);
 	}
 
 private:
 	T object;
-	std::function<void(T)> deleter;
+	const std::function<void(T)> deleter;
 
 	void cleanup()
 	{
