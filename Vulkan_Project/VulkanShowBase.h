@@ -3,8 +3,12 @@
 #include "VDeleter.h"
 
 #include <vulkan/vulkan.h>
+
 #define GLFW_INCLUDE_VULKAN
 #include <glfw/glfw3.h>
+
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE // opengl's depth range was -1 to 1
 #include <glm/glm.hpp>
 
 #include <vector>
@@ -12,7 +16,7 @@
 
 struct Vertex
 {
-	glm::vec2 pos;
+	glm::vec3 pos;
 	glm::vec3 color;
 	glm::vec2 tex_coord;
 
@@ -30,7 +34,7 @@ struct Vertex
 		std::array<VkVertexInputAttributeDescription, 3> attr_descriptions = {};
 		attr_descriptions[0].binding = 0; 
 		attr_descriptions[0].location = 0;
-		attr_descriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+		attr_descriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 		attr_descriptions[0].offset = offsetof(Vertex, pos); //bytes of a member since beginning of struct
 		attr_descriptions[1].binding = 0;
 		attr_descriptions[1].location = 1;
@@ -114,12 +118,16 @@ private:
 	VDeleter<VkSemaphore> image_available_semaphore{ graphics_device, vkDestroySemaphore };
 	VDeleter<VkSemaphore> render_finished_semaphore{ graphics_device, vkDestroySemaphore };
 
+	// only one image buffer for depth because only one draw operation happens at one time
+	VDeleter<VkImage> depth_image{ graphics_device, vkDestroyImage };
+	VDeleter<VkDeviceMemory> depth_image_memory{ graphics_device, vkFreeMemory };
+	VDeleter<VkImageView> depth_image_view{ graphics_device, vkDestroyImageView };
+
 	// texture image
 	VDeleter<VkImage> texture_image{ graphics_device, vkDestroyImage };
 	VDeleter<VkDeviceMemory> texture_image_memory{ graphics_device, vkFreeMemory };
 	VDeleter<VkImageView> texture_image_view{ graphics_device, vkDestroyImageView };
 	VDeleter<VkSampler> texture_sampler{ graphics_device, vkDestroySampler };
-
 
 	// vertex buffer
 	VDeleter<VkBuffer> vertex_buffer{ graphics_device, vkDestroyBuffer };
@@ -142,13 +150,19 @@ private:
 	const bool WINDOW_RESIZABLE = true;
 
 	const std::vector<Vertex> VERTICES = {
-		{ { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f }, {0.0f, 0.0f} },
-		{ { 0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, {0.0f, 1.0f} },
-		{ { 0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f }, {1.0f, 1.0f} },
-		{ { -0.5f, 0.5f }, { 1.0f, 1.0f, 1.0f }, {1.0f, 0.0f} }
+		{ { -0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f }, {0.0f, 0.0f} },
+		{ { 0.5f, -0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f }, {0.0f, 1.0f} },
+		{ { 0.5f, 0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f }, {1.0f, 1.0f} },
+		{ { -0.5f, 0.5f, 0.0f }, { 1.0f, 1.0f, 1.0f }, {1.0f, 0.0f} },
+
+		{ { -0.5f, -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
+		{ { 0.5f, -0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
+		{ { 0.5f, 0.5f, -0.5f },{ 0.0f, 0.0f, 1.0f },{ 1.0f, 1.0f } },
+		{ { -0.5f, 0.5f, -0.5f },{ 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } }
 	};
 	const std::vector<uint32_t> VERTEX_INDICES = {
-		0, 1, 2, 2, 3, 0
+		 0, 1, 2, 2, 3, 0
+		, 4, 5, 6, 6, 7, 4 
 	};
 
 #ifdef NDEBUG
@@ -182,8 +196,9 @@ private:
 	void createRenderPass();
 	void createDescriptorSetLayout();
 	void createGraphicsPipeline();
-	void createFrameBuffers();
 	void createCommandPool();
+	void createDepthResources();
+	void createFrameBuffers();
 	void createTextureImage();
 	void createTextureImageView();
 	void createTextureSampler();
@@ -205,10 +220,18 @@ private:
 	bool isDeviceSuitable(VkPhysicalDevice device);
 	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 	
-
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& available_formats);
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& available_present_modes);
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+	inline VkFormat findDepthFormat()
+	{
+		return findSupportedFormat(
+			{ VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT }
+			, VK_IMAGE_TILING_OPTIMAL
+			, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+			);
+	}
 
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags property_bits
 		, VkBuffer* p_buffer, VkDeviceMemory* p_buffer_memory);
@@ -221,7 +244,7 @@ private:
 	void copyImage(VkImage src_image, VkImage dst_image, uint32_t width, uint32_t height);
 	void transitionImageLayout(VkImage image, VkImageLayout old_layout, VkImageLayout new_layout);
 
-	void createImageView(VkImage image, VkFormat format, VkImageView* p_image_view);
+	void createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspect_mask, VkImageView * p_image_view);
 
 	VkCommandBuffer beginSingleTimeCommands();
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
