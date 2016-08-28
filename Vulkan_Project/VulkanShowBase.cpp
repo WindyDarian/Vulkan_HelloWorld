@@ -5,6 +5,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
+
 #include <iostream>
 #include <functional>
 #include <vector>
@@ -15,6 +18,7 @@
 #include <algorithm>
 #include <fstream>
 #include <chrono>
+#include <unordered_map>
 
 static std::vector<char> readFile(const std::string& filename) 
 {
@@ -205,6 +209,7 @@ void VulkanShowBase::initVulkan()
 	createTextureImage();
 	createTextureImageView();
 	createTextureSampler();
+	loadModel();
 	// TODO: better to use a single memory allocation for multiple buffers
 	createVertexBuffer();
 	createIndexBuffer();
@@ -937,7 +942,11 @@ void VulkanShowBase::createTextureImage()
 {
 	// load image file
 	int tex_width, tex_height, tex_channels;
-	stbi_uc * pixels = stbi_load("content/jumpin_windy.png"
+	//stbi_uc * pixels = stbi_load("content/jumpin_windy.png"
+	//	, &tex_width, &tex_height
+	//	, &tex_channels
+	//	, STBI_rgb_alpha);
+	stbi_uc * pixels = stbi_load(TEXTURE_PATH.c_str()
 		, &tex_width, &tex_height
 		, &tex_channels
 		, STBI_rgb_alpha);
@@ -1021,6 +1030,48 @@ void VulkanShowBase::createTextureSampler()
 	}
 }
 
+void VulkanShowBase::loadModel()
+{
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string err;
+
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, MODEL_PATH.c_str())) 
+	{
+		throw std::runtime_error(err);
+	}
+
+	std::unordered_map<Vertex, size_t> unique_vertices = {};
+	for (const auto& shape : shapes) 
+	{
+		for (const auto& index : shape.mesh.indices) 
+		{
+			Vertex vertex = {};
+
+			vertex.pos = {
+				attrib.vertices[3 * index.vertex_index + 0],
+				attrib.vertices[3 * index.vertex_index + 1],
+				attrib.vertices[3 * index.vertex_index + 2]
+			};
+
+			// since the y axis of obj's texture coordinate points up
+			vertex.tex_coord = { 
+				attrib.texcoords[2 * index.texcoord_index + 0],
+				1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+			};
+
+			if (unique_vertices.count(vertex) == 0)
+			{
+				unique_vertices[vertex] = vertices.size(); // auto incrementing size
+				vertices.push_back(vertex);
+			}
+
+			vertex_indices.push_back((uint32_t)unique_vertices[vertex]);
+		}
+	}
+}
+
 uint32_t findMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties, VkPhysicalDevice physical_device)
 {
 	VkPhysicalDeviceMemoryProperties memory_properties;
@@ -1041,7 +1092,7 @@ uint32_t findMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties, 
 
 void VulkanShowBase::createVertexBuffer()
 {
-	VkDeviceSize buffer_size = sizeof(VERTICES[0]) * VERTICES.size();
+	VkDeviceSize buffer_size = sizeof(vertices[0]) * vertices.size();
 
 	// create staging buffer
 	VDeleter<VkBuffer> staging_buffer{ graphics_device, vkDestroyBuffer };
@@ -1055,7 +1106,7 @@ void VulkanShowBase::createVertexBuffer()
 	// copy data to staging buffer
 	void* data;
 	vkMapMemory(graphics_device, staging_buffer_memory, 0, buffer_size, 0, &data); // access the graphics memory using mapping
-		memcpy(data, VERTICES.data(), (size_t)buffer_size); // may not be immediate due to memory caching or write operation not visiable without VK_MEMORY_PROPERTY_HOST_COHERENT_BIT or explict flusing
+		memcpy(data, vertices.data(), (size_t)buffer_size); // may not be immediate due to memory caching or write operation not visiable without VK_MEMORY_PROPERTY_HOST_COHERENT_BIT or explict flusing
 	vkUnmapMemory(graphics_device, staging_buffer_memory);
 
 	// create vertex buffer at optimized local memory which may not be directly accessable by memory mapping
@@ -1072,7 +1123,7 @@ void VulkanShowBase::createVertexBuffer()
 
 void VulkanShowBase::createIndexBuffer()
 {
-	VkDeviceSize buffer_size = sizeof(VERTEX_INDICES[0]) * VERTEX_INDICES.size();
+	VkDeviceSize buffer_size = sizeof(vertex_indices[0]) * vertex_indices.size();
 
 	// create staging buffer
 	VDeleter<VkBuffer> staging_buffer{ graphics_device, vkDestroyBuffer };
@@ -1085,7 +1136,7 @@ void VulkanShowBase::createIndexBuffer()
 
 	void* data;
 	vkMapMemory(graphics_device, staging_buffer_memory, 0, buffer_size, 0, &data); // access the graphics memory using mapping
-	memcpy(data, VERTEX_INDICES.data(), (size_t)buffer_size); // may not be immediate due to memory caching or write operation not visiable without VK_MEMORY_PROPERTY_HOST_COHERENT_BIT or explict flusing
+	memcpy(data, vertex_indices.data(), (size_t)buffer_size); // may not be immediate due to memory caching or write operation not visiable without VK_MEMORY_PROPERTY_HOST_COHERENT_BIT or explict flusing
 	vkUnmapMemory(graphics_device, staging_buffer_memory);
 
 	createBuffer(buffer_size
@@ -1248,7 +1299,7 @@ void VulkanShowBase::createCommandBuffers()
 		// TODO: better to store vertex buffer and index buffer in a single VkBuffer
 
 		//vkCmdDraw(command_buffers[i], VERTICES.size(), 1, 0, 0);
-		vkCmdDrawIndexed(command_buffers[i], (uint32_t)VERTEX_INDICES.size(), 1, 0, 0, 0);
+		vkCmdDrawIndexed(command_buffers[i], (uint32_t)vertex_indices.size(), 1, 0, 0, 0);
 
 		vkCmdEndRenderPass(command_buffers[i]);
 
@@ -1283,7 +1334,7 @@ void VulkanShowBase::updateUniformBuffer()
 	float time = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - start_time).count() / 1000.0f;
 	UniformBufferObject ubo = {};
 	ubo.model = glm::rotate(glm::mat4(), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.view = glm::lookAt(glm::vec3(1.1f, 1.1f, 1.1f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	ubo.view = glm::lookAt(glm::vec3(1.5f, 1.5f, 1.5f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	ubo.proj = glm::perspective(glm::radians(45.0f), swap_chain_extent.width / (float)swap_chain_extent.height, 0.1f, 10.0f);
 	ubo.proj[1][1] *= -1; //since the Y axis of Vulkan NDC points down
 

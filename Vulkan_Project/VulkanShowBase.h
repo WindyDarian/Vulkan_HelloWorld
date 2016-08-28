@@ -10,6 +10,7 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // opengl's depth range was -1 to 1
 #include <glm/glm.hpp>
+#include <glm/gtx/hash.hpp>
 
 #include <vector>
 #include <array>
@@ -47,7 +48,25 @@ struct Vertex
 
 		return attr_descriptions;
 	}
+
+	bool operator==(const Vertex& other) const 
+	{
+		return pos == other.pos && color == other.color && tex_coord == other.tex_coord;
+	}
 };
+
+namespace std {
+	// hash function for Vertex
+	template<> struct hash<Vertex> 
+	{
+		size_t operator()(Vertex const& vertex) const 
+		{
+			return ((hash<glm::vec3>()(vertex.pos) ^
+				(hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
+				(hash<glm::vec2>()(vertex.tex_coord) << 1);
+		}
+	};
+}
 
 struct UniformBufferObject
 {
@@ -149,21 +168,27 @@ private:
 	const int WINDOW_HEIGHT = 1080;
 	const bool WINDOW_RESIZABLE = true;
 
-	const std::vector<Vertex> VERTICES = {
-		{ { -0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f }, {0.0f, 0.0f} },
-		{ { 0.5f, -0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f }, {0.0f, 1.0f} },
-		{ { 0.5f, 0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f }, {1.0f, 1.0f} },
-		{ { -0.5f, 0.5f, 0.0f }, { 1.0f, 1.0f, 1.0f }, {1.0f, 0.0f} },
+	const std::string MODEL_PATH = "content/chalet.obj";
+	const std::string TEXTURE_PATH = "content/chalet.jpg";
 
-		{ { -0.5f, -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
-		{ { 0.5f, -0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
-		{ { 0.5f, 0.5f, -0.5f },{ 0.0f, 0.0f, 1.0f },{ 1.0f, 1.0f } },
-		{ { -0.5f, 0.5f, -0.5f },{ 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } }
-	};
-	const std::vector<uint32_t> VERTEX_INDICES = {
-		 0, 1, 2, 2, 3, 0
-		, 4, 5, 6, 6, 7, 4 
-	};
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> vertex_indices;
+
+	//const std::vector<Vertex> vertices = {
+	//	{ { -0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f }, {0.0f, 0.0f} },
+	//	{ { 0.5f, -0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f }, {0.0f, 1.0f} },
+	//	{ { 0.5f, 0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f }, {1.0f, 1.0f} },
+	//	{ { -0.5f, 0.5f, 0.0f }, { 1.0f, 1.0f, 1.0f }, {1.0f, 0.0f} },
+
+	//	{ { -0.5f, -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
+	//	{ { 0.5f, -0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
+	//	{ { 0.5f, 0.5f, -0.5f },{ 0.0f, 0.0f, 1.0f },{ 1.0f, 1.0f } },
+	//	{ { -0.5f, 0.5f, -0.5f },{ 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } }
+	//};
+	//const std::vector<uint32_t> vertex_indices = {
+	//	 0, 1, 2, 2, 3, 0
+	//	, 4, 5, 6, 6, 7, 4 
+	//};
 
 #ifdef NDEBUG
 	// if not debugging
@@ -202,6 +227,7 @@ private:
 	void createTextureImage();
 	void createTextureImageView();
 	void createTextureSampler();
+	void loadModel();
 	void createVertexBuffer();
 	void createIndexBuffer();
 	void createUniformBuffer();
@@ -227,7 +253,7 @@ private:
 	inline VkFormat findDepthFormat()
 	{
 		return findSupportedFormat(
-			{ VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT }
+			{ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT }
 			, VK_IMAGE_TILING_OPTIMAL
 			, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
 			);
