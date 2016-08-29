@@ -233,12 +233,20 @@ void VulkanShowBase::createWindowSurface()
 
 void VulkanShowBase::mainLoop()
 {
+	auto start_time = std::chrono::high_resolution_clock::now();
 	while (!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
 
 		updateUniformBuffer();
 		drawFrame();
+		total_frames++;
+	}
+	auto end_time = std::chrono::high_resolution_clock::now();
+	total_time_past = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() / 1000.0f;
+	if (total_time_past > 0)
+	{
+	    std::cout << "FPS: " << total_frames / total_time_past << std::endl;
 	}
 
 	vkDeviceWaitIdle(graphics_device);
@@ -897,7 +905,7 @@ void VulkanShowBase::createFrameBuffers()
 		framebuffer_info.height = swap_chain_extent.height;
 		framebuffer_info.layers = 1;
 
-		auto result = vkCreateFramebuffer(graphics_device, &framebuffer_info, nullptr, &swap_chain_framebuffers[i]);
+		auto result = vkCreateFramebuffer(graphics_device, &framebuffer_info, nullptr, &swap_chain_framebuffers.back());
 		if (result != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create framebuffer!");

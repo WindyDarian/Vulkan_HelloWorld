@@ -174,6 +174,9 @@ private:
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> vertex_indices;
 
+	float total_time_past = 0.0f;
+	int total_frames = 0;
+
 	//const std::vector<Vertex> vertices = {
 	//	{ { -0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f }, {0.0f, 0.0f} },
 	//	{ { 0.5f, -0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f }, {0.0f, 1.0f} },
