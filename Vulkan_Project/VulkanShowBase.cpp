@@ -1329,7 +1329,6 @@ void VulkanShowBase::createSemaphores()
 
 	if (result1 != VK_SUCCESS || result2 != VK_SUCCESS) 
 	{
-
 		throw std::runtime_error("failed to create semaphores!");
 	}
 }
@@ -1552,15 +1551,9 @@ void VulkanShowBase::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, V
 
 void VulkanShowBase::copyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
 {
-
-	VkBufferCopy copy_region = {};
-	copy_region.srcOffset = 0; // Optional
-	copy_region.dstOffset = 0; // Optional
-	copy_region.size = size;
-
 	VkCommandBuffer copy_command_buffer = beginSingleTimeCommands();
 
-	vkCmdCopyBuffer(copy_command_buffer, src_buffer, dst_buffer, 1, &copy_region);
+	recordCopyBuffer(copy_command_buffer, src_buffer, dst_buffer, size);
 
 	endSingleTimeCommands(copy_command_buffer);
 }
@@ -1616,92 +1609,19 @@ void VulkanShowBase::createImage(uint32_t image_width, uint32_t image_height
 
 void VulkanShowBase::copyImage(VkImage src_image, VkImage dst_image, uint32_t width, uint32_t height)
 {
-	VkImageSubresourceLayers sub_besource = {};
-	sub_besource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	sub_besource.baseArrayLayer = 0;
-	sub_besource.mipLevel = 0;
-	sub_besource.layerCount = 1;
-
-	VkImageCopy region = {};
-	region.srcSubresource = sub_besource;
-	region.dstSubresource = sub_besource;
-	region.srcOffset = { 0, 0, 0 };
-	region.dstOffset = { 0, 0, 0 };
-	region.extent.width = width;
-	region.extent.height = height;
-	region.extent.depth = 1;
-
 	VkCommandBuffer command_buffer = beginSingleTimeCommands();
-	vkCmdCopyImage(command_buffer,
-		src_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-		dst_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		1, &region
-		);
+
+	recordCopyImage(command_buffer, src_image, dst_image, width, height);
+
 	endSingleTimeCommands(command_buffer);
 }
 
 void VulkanShowBase::transitionImageLayout(VkImage image, VkImageLayout old_layout, VkImageLayout new_layout)
 {
-	// barrier is used to ensure a buffer has finished writing before 
-	// reading as weel as doing transition
-	VkImageMemoryBarrier barrier = {};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.oldLayout = old_layout;
-	barrier.newLayout = new_layout;
-	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.image = image;
-
-	if (new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) 
-	{
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	}
-	else 
-	{
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	}
-
-	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = 1;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
-
-	if (old_layout == VK_IMAGE_LAYOUT_PREINITIALIZED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-	{
-		// dst must wait on src
-		barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-	}
-	else if (old_layout == VK_IMAGE_LAYOUT_PREINITIALIZED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-	{
-		barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	}
-	else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-	{
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-	}
-	else if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT 
-			| VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	}
-	else 
-	{
-		throw std::invalid_argument("unsupported layout transition!");
-	}
-
 	VkCommandBuffer command_buffer = beginSingleTimeCommands();
-	vkCmdPipelineBarrier(command_buffer
-		,VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT // which stage to happen before barrier
-		,VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT // which stage needs to wait for barrier
-		,0 
-		,0, nullptr
-		,0, nullptr
-		,1, &barrier
-		);
+	
+	recordTransitImageLayout(command_buffer, image, old_layout, new_layout);
+
 	endSingleTimeCommands(command_buffer);
 }
 
@@ -1768,4 +1688,101 @@ void VulkanShowBase::endSingleTimeCommands(VkCommandBuffer command_buffer)
 
 	// free the temperorary command buffer
 	vkFreeCommandBuffers(graphics_device, command_pool, 1, &command_buffer);
+}
+
+void VulkanShowBase::recordCopyBuffer(VkCommandBuffer command_buffer, VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
+{
+	VkBufferCopy copy_region = {};
+	copy_region.srcOffset = 0; // Optional
+	copy_region.dstOffset = 0; // Optional
+	copy_region.size = size;
+
+	vkCmdCopyBuffer(command_buffer, src_buffer, dst_buffer, 1, &copy_region);
+}
+
+void VulkanShowBase::recordCopyImage(VkCommandBuffer command_buffer, VkImage src_image, VkImage dst_image, uint32_t width, uint32_t height)
+{
+	VkImageSubresourceLayers sub_besource = {};
+	sub_besource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	sub_besource.baseArrayLayer = 0;
+	sub_besource.mipLevel = 0;
+	sub_besource.layerCount = 1;
+
+	VkImageCopy region = {};
+	region.srcSubresource = sub_besource;
+	region.dstSubresource = sub_besource;
+	region.srcOffset = { 0, 0, 0 };
+	region.dstOffset = { 0, 0, 0 };
+	region.extent.width = width;
+	region.extent.height = height;
+	region.extent.depth = 1;
+
+	vkCmdCopyImage(command_buffer,
+		src_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+		dst_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		1, &region
+		);
+}
+
+void VulkanShowBase::recordTransitImageLayout(VkCommandBuffer command_buffer, VkImage image, VkImageLayout old_layout, VkImageLayout new_layout)
+{
+	// barrier is used to ensure a buffer has finished writing before 
+	// reading as weel as doing transition
+	VkImageMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.oldLayout = old_layout;
+	barrier.newLayout = new_layout;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.image = image;
+
+	if (new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+	{
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	}
+	else
+	{
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	}
+
+	barrier.subresourceRange.baseMipLevel = 0;
+	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.baseArrayLayer = 0;
+	barrier.subresourceRange.layerCount = 1;
+
+	if (old_layout == VK_IMAGE_LAYOUT_PREINITIALIZED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+	{
+		// dst must wait on src
+		barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+	}
+	else if (old_layout == VK_IMAGE_LAYOUT_PREINITIALIZED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	}
+	else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	}
+	else if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+	{
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
+			| VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	}
+	else
+	{
+		throw std::invalid_argument("unsupported layout transition!");
+	}
+
+	vkCmdPipelineBarrier(command_buffer
+		, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT // which stage to happen before barrier
+		, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT // which stage needs to wait for barrier
+		, 0
+		, 0, nullptr
+		, 0, nullptr
+		, 1, &barrier
+		);
 }
