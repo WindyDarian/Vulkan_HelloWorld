@@ -199,7 +199,7 @@ void VulkanShowBase::initVulkan()
 	pickPhysicalDevice();
 	createLogicalDevice();
 	createSwapChain();
-	createImageViews();
+	createSwapChainImageViews();
 	createRenderPass();
 	createDescriptorSetLayout();
 	createGraphicsPipeline();
@@ -257,7 +257,7 @@ void VulkanShowBase::recreateSwapChain()
 	vkDeviceWaitIdle(graphics_device);
 
 	createSwapChain();
-	createImageViews();
+	createSwapChainImageViews();
 	createRenderPass();
 	createGraphicsPipeline();
 	createDepthResources();
@@ -608,7 +608,7 @@ void VulkanShowBase::createSwapChain()
 	swap_chain_extent = extent;
 }
 
-void VulkanShowBase::createImageViews()
+void VulkanShowBase::createSwapChainImageViews()
 {
 	swap_chain_imageviews.clear(); // VDeleter will delete old objects
 	swap_chain_imageviews.reserve(swap_chain_images.size());
@@ -943,7 +943,7 @@ void VulkanShowBase::createDepthResources()
 		, &depth_image
 		, &depth_image_memory);
 	createImageView(depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT, &depth_image_view);
-	transitionImageLayout(depth_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	transitImageLayout(depth_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 }
 
 void VulkanShowBase::createTextureImage()
@@ -994,11 +994,14 @@ void VulkanShowBase::createTextureImage()
 		);
 
 	// TODO: doing the steps asynchronously by using a single command buffer 
-	transitionImageLayout(staging_image, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-	transitionImageLayout(texture_image, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	copyImage(staging_image, texture_image, tex_width, tex_height);
-	transitionImageLayout(texture_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	auto command_buffer = beginSingleTimeCommands();
 
+	recordTransitImageLayout(command_buffer, staging_image, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+	recordTransitImageLayout(command_buffer, texture_image, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	recordCopyImage(command_buffer, staging_image, texture_image, tex_width, tex_height);
+	recordTransitImageLayout(command_buffer, texture_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	endSingleTimeCommands(command_buffer);
 }
 
 void VulkanShowBase::createTextureImageView()
@@ -1350,7 +1353,10 @@ void VulkanShowBase::updateUniformBuffer()
 	memcpy(data, &ubo, sizeof(ubo));
 	vkUnmapMemory(graphics_device, uniform_staging_buffer_memory);
 
-	copyBuffer(uniform_staging_buffer, uniform_buffer, sizeof(ubo));
+	copyBuffer(uniform_staging_buffer, uniform_buffer, sizeof(ubo)); 
+	// TODO: maybe I shouldn't use single time buffer
+
+	//TODO: use push constants
 }
 
 const uint64_t ACQUIRE_NEXT_IMAGE_TIMEOUT{ std::numeric_limits<uint64_t>::max() };
@@ -1616,7 +1622,7 @@ void VulkanShowBase::copyImage(VkImage src_image, VkImage dst_image, uint32_t wi
 	endSingleTimeCommands(command_buffer);
 }
 
-void VulkanShowBase::transitionImageLayout(VkImage image, VkImageLayout old_layout, VkImageLayout new_layout)
+void VulkanShowBase::transitImageLayout(VkImage image, VkImageLayout old_layout, VkImageLayout new_layout)
 {
 	VkCommandBuffer command_buffer = beginSingleTimeCommands();
 	

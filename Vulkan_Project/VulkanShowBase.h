@@ -220,7 +220,7 @@ private:
 	void pickPhysicalDevice();
 	void createLogicalDevice();
 	void createSwapChain();
-	void createImageViews();
+	void createSwapChainImageViews();
 	void createRenderPass();
 	void createDescriptorSetLayout();
 	void createGraphicsPipeline();
@@ -271,13 +271,12 @@ private:
 		, VkImageUsageFlags usage, VkMemoryPropertyFlags memory_properties
 		, VkImage* p_vkimage, VkDeviceMemory* p_image_memory);
 	void copyImage(VkImage src_image, VkImage dst_image, uint32_t width, uint32_t height);
-	void transitionImageLayout(VkImage image, VkImageLayout old_layout, VkImageLayout new_layout);
+	void transitImageLayout(VkImage image, VkImageLayout old_layout, VkImageLayout new_layout);
 
 	void createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspect_mask, VkImageView * p_image_view);
 
 	VkCommandBuffer beginSingleTimeCommands();
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
-
 
 	// Called on vulcan command buffer recording
 	void recordCopyBuffer(VkCommandBuffer command_buffer, VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
