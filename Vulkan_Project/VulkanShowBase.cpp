@@ -615,7 +615,7 @@ void VulkanShowBase::createSwapChainImageViews()
 
 	for (uint32_t i = 0; i < swap_chain_images.size(); i++) 
 	{
-		swap_chain_imageviews.push_back(std::move(VDeleter<VkImageView>( graphics_device, vkDestroyImageView )));
+		swap_chain_imageviews.emplace_back( graphics_device, vkDestroyImageView);
 		createImageView(swap_chain_images[i], swap_chain_image_format, VK_IMAGE_ASPECT_COLOR_BIT, &swap_chain_imageviews[i]);
 	}
 }
@@ -892,8 +892,8 @@ void VulkanShowBase::createFrameBuffers()
 
 	for (size_t i = 0; i < swap_chain_imageviews.size(); i++)
 	{
-		swap_chain_framebuffers.push_back(VDeleter<VkFramebuffer>{ graphics_device, vkDestroyFramebuffer });
-
+		//swap_chain_framebuffers.push_back(VDeleter<VkFramebuffer>{ graphics_device, vkDestroyFramebuffer });
+		swap_chain_framebuffers.emplace_back(graphics_device, vkDestroyFramebuffer);
 		std::array<VkImageView, 2> attachments = { swap_chain_imageviews[i], depth_image_view};
 
 		VkFramebufferCreateInfo framebuffer_info = {};
