@@ -11,7 +11,7 @@ class VDeleter
 public:
 	VDeleter()
 		: object(VK_NULL_HANDLE)
-		, deleter( [](T obj) { std::runtime_error("VDeleter with empty deleter destroyed while resource was not VK_NULL_HANDLE")} )
+		, deleter( [](T obj) { std::runtime_error("VDeleter with empty deleter destroyed while resource was not VK_NULL_HANDLE");} )
 	{}
 
 	VDeleter(std::function<void(T, VkAllocationCallbacks*)> deletef)
@@ -29,7 +29,7 @@ public:
 		, deleter( [&device, deletef](T obj) { deletef(device, obj, nullptr); } )
 	{}
 
-	//// Create a VDeleter by copying deleter function (not the object) from a template. 
+	//// Create a VDeleter by copying deleter function (not the object) from a template.
 	//static VDeleter<T> createByCopyingDeleter(const VDeleter<T>& other)
 	//{
 	//	VDeleter<T> result = {};

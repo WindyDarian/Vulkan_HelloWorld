@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.6)
+cmake_minimum_required (VERSION 3.5)
 project (vulkan_helloworld)
 set(CMAKE_CXX_STANDARD 14)
 
@@ -30,7 +30,5 @@ target_link_libraries(${CMAKE_PROJECT_NAME} glfw)
 
 find_package(Vulkan REQUIRED)
 
-set(VK_LIBS ${Vulkan_LIBRARIES} CACHE FILEPATH VK_LIBS)
-set(VK_INCLUDES ${Vulkan_INCLUDE_DIRS} CACHE FILEPATH VK_INCLUDES)
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(${CMAKE_PROJECT_NAME} ${Vulkan_LIBRARIES})
