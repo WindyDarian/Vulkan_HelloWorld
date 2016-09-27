@@ -36,7 +36,7 @@ copy `src/content` to `build` folder, then run the executable
 
 ### Screenshots
 
-![typical triangle](/Screenshots/1.JPG)
+![typical triangle](/Screenshots/1.png)
 
 ![texture mapping and depth test](/Screenshots/depth_test.JPG)
 
