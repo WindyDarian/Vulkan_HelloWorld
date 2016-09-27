@@ -6,7 +6,7 @@ Not that strictly following though...
 
 Through the tutorial, I have learned __how to create a basic vulkan graphics pipeline__.
 
-![ran on Ubuntu](/Screenshots/screenshot_ubuntu.png)
+![animation](/Screenshots/animation.gif)
 
 ### build
 
